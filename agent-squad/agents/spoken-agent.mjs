@@ -24,7 +24,7 @@ export async function runSpokenAgent() {
     if (!phrase) continue;
 
     try {
-      const prompt = `You are a daily spoken-English assistant for a C1 learner. Based on this BBC Learning English episode, generate content in 中文 + English.
+      const prompt = `You are a daily spoken-English assistant for a C1 learner. **User lives in the US — prioritize American English.**
 
 Episode title: ${item.title}
 Source: ${item.source}
@@ -34,15 +34,15 @@ Output valid JSON only, no markdown fences, no extra text. Use this exact struct
 {
   "expression": "${phrase}",
   "definition": "一两句中文讲解：用法、语气、适用场景",
-  "nuance": "Nuance Check：与近义表达的辨析，例如 I'm down vs I'm game，用中文说明区别",
-  "cultural_note": "Cultural Note：文化背景或使用场合的补充说明",
+  "nuance": "Nuance Check：与近义表达的辨析。若此表达为英式独有，注明美式对应说法",
+  "cultural_note": "Cultural Note：文化背景。若为 UK 特有，注明在美国的等价用法或使用场合",
   "simulated_dialogue": "2-4 句简短英文对话，自然使用该短语，A/B 轮换"
 }
 
 Requirements:
 - definition, nuance, cultural_note: 中文
-- simulated_dialogue: 纯英文，自然对话
-- 若无法准确辨析，nuance 可简写`;
+- simulated_dialogue: 纯英文，**使用美式拼写与用法**（color, realize, gotten 等），对话场景贴近美国日常
+- 若 BBC 表达为英式独有，cultural_note 中说明美式等价表达`;
 
       const raw = await generateWithGemini(prompt);
       const cleaned = raw.replace(/^[\s\S]*?(\{[\s\S]*\})[\s\S]*$/m, '$1').trim();
@@ -76,10 +76,10 @@ Requirements:
   if (expressions.length === 0) return fallbackSpoken();
 
   try {
-    const prompt = `Generate a combined practice dialogue and study tip. Output valid JSON only:
+    const prompt = `Generate a combined practice dialogue and study tip. **Use American English** (US spelling, vocabulary, idioms). Output valid JSON only:
 {
   "sceneLabel": "场景简述（例如：朋友聊 BBC 今日短语）",
-  "storyEn": "4-6 句英文对话，每人使用 1-2 个今日短语。用 <mark class=\\"hl-spoken\\">phrase</mark> 标出短语",
+  "storyEn": "4-6 句英文对话，每人使用 1-2 个今日短语。用 <mark class=\\"hl-spoken\\">phrase</mark> 标出短语。美式英语。",
   "storyZh": "同上对话的中文版，用 <mark class=\\"hl-spoken-zh\\">对应短语</mark> 标出",
   "studyTip": "一两句学习建议，鼓励开口练、跟读"
 }

@@ -129,4 +129,4 @@ create policy "Allow public read" on agent_digests for select using (true);
 ```
 
 2. 在 `agent-squad/.env` 中配置 `SUPABASE_URL` 与 `SUPABASE_SERVICE_ROLE_KEY`，运行 `npm run run-once` 后数据会写入 Supabase。
-3. 在 Next 应用中打开 `/agents` 页面即可查看最新一日推送（需在 Next 项目中配置 `NEXT_PUBLIC_SUPABASE_URL` 与 `NEXT_PUBLIC_SUPABASE_ANON_KEY`）。
+3. 在网站打开 **/study**（格雷西的学习天地）即可查看文献、英语（口语+外刊精读），随时复习。需配置 `NEXT_PUBLIC_SUPABASE_URL` 与 `NEXT_PUBLIC_SUPABASE_ANON_KEY`。

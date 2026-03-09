@@ -1046,6 +1046,17 @@ const READING_GUIDE_STYLES = `
     margin: 28px 0 14px 0;
     display: block;
   }
+  .sec-head .level-badge {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: #9a4e10;
+    color: #fff;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
   .excerpt-wrap {
     background: #fffaf2;
     border-left: 4px solid #c47a1e;
@@ -1072,37 +1083,39 @@ const READING_GUIDE_STYLES = `
     border: 1.5px solid #e8d5a8;
     border-radius: 10px;
     overflow: hidden;
-    margin-bottom: 12px;
-    background: #fffaf2;
+    margin-bottom: 16px;
+    background: #fff;
   }
+  .vc:last-of-type { margin-bottom: 0; }
   .vc-num {
-    width: 48px;
-    min-width: 48px;
-    background: #c47a1e;
+    width: 44px;
+    min-width: 44px;
+    background: #9a4e10;
     color: #fff;
-    font-size: 13px;
-    font-weight: 900;
+    font-size: 12px;
+    font-weight: 800;
     text-align: center;
-    padding: 14px;
-    vertical-align: middle;
+    padding: 16px 8px;
+    vertical-align: top;
   }
-  .vc td:last-child { padding: 14px 18px 14px 16px; vertical-align: top; }
-  .vc-word { font-size: 20px; font-weight: 800; color: #5c2d00; margin-bottom: 2px; }
-  .vc-pos { font-size: 11.5px; color: #9a4e10; font-style: italic; margin-bottom: 9px; }
+  .vc td:last-child { padding: 16px 20px 16px 18px; vertical-align: top; }
+  .vc-head { margin-bottom: 10px; }
+  .vc-word { font-size: 18px; font-weight: 800; color: #5c2d00; display: inline; margin-right: 8px; }
+  .vc-pos { font-size: 11px; color: #9a4e10; font-style: italic; display: inline; }
+  .vc-pos-zh { font-size: 12px; color: #7a4a0a; margin-left: 6px; }
   .vc-sent {
     font-size: 13px;
     font-style: italic;
-    color: #555;
-    line-height: 1.65;
-    margin-bottom: 6px;
+    color: #444;
+    line-height: 1.7;
+    margin: 0 0 10px 0;
+    padding: 10px 12px;
+    background: #fffaf2;
     border-left: 3px solid #c47a1e;
-    padding-left: 10px;
-    background: #fff7e8;
-    padding: 6px 10px;
-    border-radius: 0 5px 5px 0;
+    border-radius: 0 6px 6px 0;
   }
-  .vc-zh { font-size: 13.5px; color: #1c1008; margin-bottom: 5px; font-weight: 600; }
-  .vc-tip { font-size: 12.5px; color: #777; line-height: 1.55; }
+  .vc-zh { font-size: 13.5px; color: #1c1008; line-height: 1.65; margin: 0 0 6px 0; font-weight: 500; }
+  .vc-tip { font-size: 12px; color: #777; line-height: 1.5; margin: 0; }
   .gs {
     border: 1.5px solid #e8d5a8;
     border-radius: 10px;
@@ -1223,21 +1236,35 @@ export function buildReadingGuideHtml(readingGuide, dateStr) {
   const url = readingGuide?.url || '#';
   const excerptHtml = readingGuide?.excerptHtml || '<p class="ep">（暂无摘录）</p>';
   const vocabCards = readingGuide?.vocabCards || [];
+  const formatPos = (v) => {
+    const pos = (v.pos || '').split('|')[0].trim();
+    const posZh = v.pos_zh || (v.pos || '').split('|')[1]?.trim() || '';
+    return { pos, posZh };
+  };
   const vocabHtml = vocabCards
     .map(
-      (v, i) => `
+      (v, i) => {
+        const { pos, posZh } = formatPos(v);
+        const sentHtml = v.sent ? `<div class="vc-sent">${escapeHtml(v.sent)}</div>` : '';
+        const zhHtml = v.zh ? `<div class="vc-zh">${escapeHtml(v.zh)}</div>` : '';
+        const tipHtml = v.tip ? `<div class="vc-tip">${escapeHtml(v.tip)}</div>` : '';
+        return `
 <div class="vc">
   <table width="100%" cellpadding="0" cellspacing="0"><tr>
     <td class="vc-num">${String(i + 1).padStart(2, '0')}</td>
     <td>
-      <div class="vc-word">${escapeHtml(v.word || '')}</div>
-      <div class="vc-pos">${escapeHtml(v.pos || '')}</div>
-      <div class="vc-sent">${escapeHtml(v.sent || '')}</div>
-      <div class="vc-zh">${escapeHtml(v.zh || '')}</div>
-      <div class="vc-tip">${escapeHtml(v.tip || '')}</div>
+      <div class="vc-head">
+        <span class="vc-word">${escapeHtml(v.word || '')}</span>
+        <span class="vc-pos">${escapeHtml(pos)}</span>
+        ${posZh ? `<span class="vc-pos-zh">${escapeHtml(posZh)}</span>` : ''}
+      </div>
+      ${sentHtml}
+      ${zhHtml}
+      ${tipHtml}
     </td>
   </tr></table>
-</div>`
+</div>`;
+      }
     )
     .join('');
   const grammarSpotlight = readingGuide?.grammarSpotlight || [];
@@ -1321,7 +1348,7 @@ export function buildReadingGuideHtml(readingGuide, dateStr) {
       ${metaBlock}
       <div class="sec-head">📚 Annotated Excerpt</div>
       <div class="excerpt-wrap">${excerptHtml}</div>
-      <div class="sec-head">📖 Vocabulary in Context</div>
+      <div class="sec-head">📖 Vocabulary in Context <span class="level-badge">C1/C2</span></div>
       ${vocabHtml}
       <div class="sec-head">🔍 Grammar Spotlight</div>
       ${grammarHtml}

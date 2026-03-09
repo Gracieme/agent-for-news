@@ -31,5 +31,7 @@ jobs:
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
           TO_EMAIL: ${{ secrets.TO_EMAIL }}
           SEMANTIC_SCHOLAR_API_KEY: ${{ secrets.SEMANTIC_SCHOLAR_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: node run-once.mjs
         working-directory: agent-squad

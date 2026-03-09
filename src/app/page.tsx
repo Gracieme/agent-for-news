@@ -76,6 +76,13 @@ export default function HomePage() {
                 塔罗入门
               </Link>
               <Link
+                href="/study"
+                className="px-5 py-2 rounded-full font-medium transition-all hover:scale-[1.02]"
+                style={{ color: "var(--sage-deep)", border: "2px solid var(--sage-deep)" }}
+              >
+                学习天地
+              </Link>
+              <Link
                 href="/agents"
                 className="px-5 py-2 rounded-full font-medium transition-all hover:scale-[1.02]"
                 style={{ color: "var(--sage-deep)", border: "2px solid var(--sage-deep)" }}

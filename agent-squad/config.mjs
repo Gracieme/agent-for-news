@@ -11,6 +11,9 @@ export const TZ = 'America/Denver';
 // 默认收件邮箱
 export const TARGET_EMAIL = 'jiaxinshen1208@gmail.com';
 
+// 英语变体：用户在美国，语料以美式英语为主
+export const ENGLISH_VARIETY = 'American';
+
 // 英语助手：目标水平 C1
 export const ENGLISH_LEVEL = 'C1';
 export const IDIOMS_PER_DAY = 10;

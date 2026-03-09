@@ -1,20 +1,35 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   if (!supabase) {
     return NextResponse.json(
       { error: "未配置 Supabase" },
       { status: 503 }
     );
   }
+  const { searchParams } = new URL(req.url);
+  const list = searchParams.get("list") === "1";
+  const date = searchParams.get("date");
+
   try {
-    const { data, error } = await supabase
-      .from("agent_digests")
-      .select("date, digest")
-      .order("date", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    if (list) {
+      const { data, error } = await supabase
+        .from("agent_digests")
+        .select("date")
+        .order("date", { ascending: false })
+        .limit(30);
+      if (error) throw error;
+      return NextResponse.json({ dates: (data || []).map((r) => r.date) });
+    }
+
+    let query = supabase.from("agent_digests").select("date, digest");
+    if (date) {
+      query = query.eq("date", date).maybeSingle();
+    } else {
+      query = query.order("date", { ascending: false }).limit(1).maybeSingle();
+    }
+    const { data, error } = await query;
 
     if (error) throw error;
     if (!data) {
