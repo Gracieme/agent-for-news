@@ -48,6 +48,7 @@ interface Digest {
   readingGuide?: {
     summary?: string;
     source?: string;
+    date?: string;
     title?: string;
     url?: string;
     excerptHtml?: string;
@@ -310,7 +311,9 @@ export default function StudyPage() {
                     {digest.spoken?.summary}
                   </p>
                   <div className="space-y-6">
-                    {expressions.map((e, i) => (
+                    {expressions.map((e, i) => {
+                        const ex = e as Expression & { word?: string; explanation_zh?: string; example_en?: string };
+                        return (
                       <div
                         key={i}
                         className="rounded-xl p-5"
@@ -320,26 +323,26 @@ export default function StudyPage() {
                         }}
                       >
                         <div className="font-bold text-lg mb-2" style={{ color: "var(--sage-deep)" }}>
-                          {e.expression || e.word}
+                          {ex.expression || ex.word}
                         </div>
-                        {(e.definition || e.explanation_zh) && (
+                        {(ex.definition || ex.explanation_zh) && (
                           <p className="text-sm mb-2" style={{ color: "var(--text-warm)" }}>
-                            {e.definition || e.explanation_zh}
+                            {ex.definition || ex.explanation_zh}
                           </p>
                         )}
-                        {e.nuance && (
+                        {ex.nuance && (
                           <p className="text-sm mb-2" style={{ color: "var(--text-muted)" }}>
                             <span className="font-medium">Nuance：</span>
-                            {e.nuance}
+                            {ex.nuance}
                           </p>
                         )}
-                        {e.cultural_note && (
+                        {ex.cultural_note && (
                           <p className="text-sm mb-2" style={{ color: "var(--text-muted)" }}>
                             <span className="font-medium">Cultural Note：</span>
-                            {e.cultural_note}
+                            {ex.cultural_note}
                           </p>
                         )}
-                        {(e.simulated_dialogue || e.example_en) && (
+                        {(ex.simulated_dialogue || ex.example_en) && (
                           <div
                             className="text-sm p-3 rounded-lg mt-2 italic"
                             style={{
@@ -347,11 +350,12 @@ export default function StudyPage() {
                               color: "var(--text-warm)",
                             }}
                           >
-                            {e.simulated_dialogue || e.example_en}
+                            {ex.simulated_dialogue || ex.example_en}
                           </div>
                         )}
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                   {digest.spoken?.studyTip && (
                     <div
@@ -408,7 +412,7 @@ export default function StudyPage() {
                         词汇卡 C1/C2
                       </h3>
                       <div className="space-y-4">
-                        {readingGuide.vocabCards!.map((v, i) => (
+                        {(readingGuide?.vocabCards ?? []).map((v, i) => (
                           <div
                             key={i}
                             className="rounded-lg p-4"

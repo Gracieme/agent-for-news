@@ -23,13 +23,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ dates: (data || []).map((r) => r.date) });
     }
 
-    let query = supabase.from("agent_digests").select("date, digest");
-    if (date) {
-      query = query.eq("date", date).maybeSingle();
-    } else {
-      query = query.order("date", { ascending: false }).limit(1).maybeSingle();
-    }
-    const { data, error } = await query;
+    const { data, error } = date
+      ? await supabase.from("agent_digests").select("date, digest").eq("date", date).maybeSingle()
+      : await supabase.from("agent_digests").select("date, digest").order("date", { ascending: false }).limit(1).maybeSingle();
 
     if (error) throw error;
     if (!data) {
