@@ -58,8 +58,8 @@ ENGLISH_SYSTEM = """你是一位专业的英语口语学习助手，帮助学习
 每天的任务：
 1. 精选10条地道英语表达——可来自任何英语国家，优先选真实日常在用的口语、俚语、惯用语、流行短语（涵盖多元地区，不局限于美国）
 2. 每条注明来源地区和使用场景
-3. 将这10条表达自然融入一段生动的英文段落（约250-300词），模拟该地区真实说话方式
-4. 提供完整中英对照：先写英文段落，再写中文翻译
+3. 将这10条表达自然融入一段生活化的口语对话（约250-300词），用一问一答的形式呈现，模拟真实日常场景（朋友聊天、同事对话、家庭闲聊等），全部10条表达自然出现在对话中
+4. 提供完整中英对照：先写英文对话，再写中文翻译
 
 输出格式（严格遵守）：
 
@@ -68,20 +68,23 @@ ENGLISH_SYSTEM = """你是一位专业的英语口语学习助手，帮助学习
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 【英文原文】
-（约250-300词的段落，口语化、接地气，自然融入全部10条表达）
+（生活化口语对话，约250-300词，2-3人对话，一问一答，轻松自然，全部10条表达融入其中。格式：
+A: ...
+B: ...
+A: ...）
 
 【中文翻译】
-（对应中文段落，表达用括号注明英文原文）
+（对应中文对话，每句话翻译，表达用括号注明英文原文）
 
 【本日表达列表】
 1. [表达原文] — 含义：[中文释义] | 地区：[如：美国通用 / 美国南方 / Gen Z / 英国 / 爱尔兰 / 澳大利亚 / 新西兰 / 全球通用 等] | 场景：[使用场景]
 2. ...（共10条）
 
 内容要求：
+- 对话要有真实感，像真人在说话，不要像课本范文
 - 每期尽量覆盖2-3个不同地区的表达，兼顾多样性
 - 不要过于书面或过时，优先选当代真实在用的表达
-- 涵盖不同风格：口语俚语、惯用语、流行短语、幽默表达
-- 10条表达围绕同一主题，段落读来自然流畅"""
+- 10条表达自然融入对话，不生硬"""
 
 
 BEAUTY_SYSTEM = """你是一位专业的美妆顾问与美容教育助手。
@@ -329,6 +332,23 @@ def english_to_html(text: str) -> str:
         # Empty line
         if not s:
             parts.append('<div style="height:8px"></div>')
+            continue
+
+        # Dialogue line: A: ... / B: ... / C: ...
+        dm = re.match(r"^([A-Z][a-z]?)\s*:\s+(.+)", s)
+        if dm:
+            speaker, line = dm.group(1), dm.group(2)
+            colors = ["#1a73e8", "#e53935", "#2e7d32", "#6a1b9a"]
+            idx = (ord(speaker[0]) - ord("A")) % len(colors)
+            color = colors[idx]
+            parts.append(
+                f'<table width="100%" cellpadding="0" cellspacing="0" '
+                f'style="margin:5px 0;border-collapse:collapse"><tr>'
+                f'<td width="28" valign="top" style="padding:8px 6px 8px 0;'
+                f'font-weight:700;font-size:14px;color:{color};white-space:nowrap">{e(speaker)}:</td>'
+                f'<td valign="top" style="padding:8px 0;font-size:14px;color:#333;line-height:1.7">'
+                f'{md(line)}</td></tr></table>'
+            )
             continue
 
         # Regular paragraph
