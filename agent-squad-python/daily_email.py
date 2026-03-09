@@ -75,7 +75,7 @@ ENGLISH_SYSTEM = """你是一位专业的美式英语学习助手，专注于帮
 （对应中文段落，美式表达用括号注明英文原文）
 
 【本日表达列表】
-1. [表达原文] — 含义：[中文释义] | 场景：[使用场景]
+1. [表达原文] — 含义：[中文释义] | 地区：[来源地区，如：全美通用 / 美国南方 / 纽约 / 加州 / Gen Z / 职场 等] | 场景：[使用场景]
 2. ...（共10条）
 
 内容要求：
@@ -135,6 +135,7 @@ emotional labor、autoethnography、policy implementation
 📌 作者：
 📖 标题：
 📰 期刊：
+📅 年份：（发表年份）
 📊 引用量：（约X次（估计））
 📝 摘要：
 🔗 与本研究的关联性：
@@ -144,7 +145,10 @@ emotional labor、autoethnography、policy implementation
 然后再写：━━━━━━━━━━━━━━━━━━━━━━━━
 然后是论文各字段。
 
-只推荐训练数据中真实存在的论文，优先2012年至今。"""
+**重要原则：**
+- 优先推荐 2020–2024 年发表的最新前沿研究，尽量选近3年内的论文
+- 避免只选大名鼎鼎的经典文献——重点发掘新兴学者、新视角、新方法论的近期成果
+- 只推荐训练数据中真实存在的论文，不要虚构"""
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -274,10 +278,23 @@ def english_to_html(text: str) -> str:
             idiom_raw = dash_m[0].strip()
             detail    = dash_m[1].strip() if len(dash_m) > 1 else ""
 
-            # Split detail into 含义 and 场景/地区
-            tag_m = re.split(r"\|\s*(?:场景|地区)：", detail, 1)
-            meaning = tag_m[0].replace("含义：", "").strip()
-            region  = tag_m[1].strip() if len(tag_m) > 1 else ""
+            # Parse 含义 | 地区 | 场景
+            parts_detail = re.split(r"\|\s*(?:地区|场景)：", detail)
+            meaning  = parts_detail[0].replace("含义：", "").strip()
+            region_m = re.search(r"\|\s*地区：([^|]+)", detail)
+            scene_m  = re.search(r"\|\s*场景：([^|]+)", detail)
+            region   = region_m.group(1).strip() if region_m else ""
+            scene    = scene_m.group(1).strip() if scene_m else ""
+
+            tags_html = ""
+            if region:
+                tags_html += (f'<span style="display:inline-block;padding:2px 8px;'
+                              f'background:#e8f0fe;border-radius:10px;font-size:11px;'
+                              f'color:#1a73e8;white-space:nowrap;margin-left:6px">📍 {e(region)}</span>')
+            if scene:
+                tags_html += (f'<span style="display:inline-block;padding:2px 8px;'
+                              f'background:#e8f5e9;border-radius:10px;font-size:11px;'
+                              f'color:#2e7d32;white-space:nowrap;margin-left:6px">💬 {e(scene)}</span>')
 
             parts.append(
                 f'<table width="100%" cellpadding="0" cellspacing="0" '
@@ -292,10 +309,8 @@ def english_to_html(text: str) -> str:
                 f'border-left:none">'
                 f'<strong style="color:#1a73e8;font-size:14px">{e(idiom_raw)}</strong>'
                 f'<span style="color:#555;font-size:13px;margin-left:8px">— {e(meaning)}</span>'
-                + (f'&nbsp;&nbsp;<span style="display:inline-block;padding:2px 8px;'
-                   f'background:#e8f0fe;border-radius:10px;font-size:11px;color:#1a73e8;'
-                   f'white-space:nowrap">📍 {e(region)}</span>' if region else "")
-                + f'</td></tr></table>'
+                f'{tags_html}'
+                f'</td></tr></table>'
             )
             continue
 
