@@ -1,0 +1,24 @@
+{
+  "name": "agent-squad",
+  "version": "1.0.0",
+  "description": "英语学习助手、美妆学习助手、科研文献助手 — 每日推送",
+  "type": "module",
+  "main": "run-once.mjs",
+  "scripts": {
+    "start": "node scheduler.mjs",
+    "run": "node --env-file=.env run-once.mjs",
+    "run-once": "node --env-file=.env run-once.mjs",
+    "check-email": "node --env-file=.env check-email-config.mjs"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.7.0",
+    "dotenv": "^16.4.0",
+    "fast-xml-parser": "^5.4.2",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^8.0.2"
+  },
+  "optionalDependencies": {
+    "@supabase/supabase-js": "^2.98.0"
+  }
+}

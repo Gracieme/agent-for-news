@@ -1,0 +1,35 @@
+# 每日定时发邮件：每天丹佛时间 8:00（约 UTC 15:00）自动运行
+# 只需配置 GitHub Secrets，无需本地开电脑、无需服务器
+name: Daily Email Digest
+
+on:
+  schedule:
+    # 丹佛 8:00 ≈ UTC 15:00（冬季 MST），GitHub Actions 使用 UTC
+    - cron: '0 15 * * *'
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: agent-squad/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: agent-squad
+
+      - name: Run daily digest and send emails
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          TO_EMAIL: ${{ secrets.TO_EMAIL }}
+          SEMANTIC_SCHOLAR_API_KEY: ${{ secrets.SEMANTIC_SCHOLAR_API_KEY }}
+        run: node run-once.mjs
+        working-directory: agent-squad

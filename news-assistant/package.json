@@ -1,0 +1,19 @@
+{
+  "name": "news-assistant",
+  "version": "1.0.0",
+  "description": "每日早晚各发送 10 条新闻摘要到邮箱",
+  "type": "module",
+  "main": "scheduler.mjs",
+  "scripts": {
+    "start": "node scheduler.mjs",
+    "fetch": "node cli-fetch.mjs",
+    "run-once": "node run-once.mjs"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.7.0",
+    "dotenv": "^16.4.0",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.9.0"
+  }
+}
