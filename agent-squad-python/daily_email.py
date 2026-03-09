@@ -270,6 +270,18 @@ def english_to_html(text: str) -> str:
             )
             continue
 
+        # Markdown headings
+        hm = re.match(r"^(#{1,3})\s+(.+)", s)
+        if hm:
+            level, heading = len(hm.group(1)), hm.group(2)
+            sz = {1: "17px", 2: "15px", 3: "14px"}.get(level, "14px")
+            parts.append(
+                f'<div style="color:#1a73e8;font-weight:700;font-size:{sz};'
+                f'margin:16px 0 6px;padding-bottom:4px;border-bottom:1px solid #e8f0fe">'
+                f'{md(heading)}</div>'
+            )
+            continue
+
         # Numbered idiom  1. ... — 含义：... | 场景/地区：...
         m = re.match(r"^(\d{1,2})[.、]\s+(.+)", s)
         if m and current_section and "表达" in current_section:
@@ -342,6 +354,18 @@ def beauty_to_html(text: str) -> str:
                 f'<div style="background:#fce4ec;border-left:4px solid #e91e8c;'
                 f'padding:10px 16px;margin:18px 0 10px;border-radius:0 6px 6px 0">'
                 f'<strong style="color:#c2185b;font-size:15px">【{e(label)}】</strong></div>'
+            )
+            continue
+
+        # Markdown headings ## / ###
+        hm = re.match(r"^(#{1,3})\s+(.+)", s)
+        if hm:
+            level, heading = len(hm.group(1)), hm.group(2)
+            sz = {1: "17px", 2: "15px", 3: "14px"}.get(level, "14px")
+            parts.append(
+                f'<div style="color:#c2185b;font-weight:700;font-size:{sz};'
+                f'margin:16px 0 6px;padding-bottom:4px;border-bottom:1px solid #fce4ec">'
+                f'{md(heading)}</div>'
             )
             continue
 
