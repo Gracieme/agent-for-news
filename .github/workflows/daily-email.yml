@@ -31,10 +31,10 @@ jobs:
 
       - name: Send daily email & build site
         env:
-          ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
-          GMAIL_USER:         ${{ secrets.EMAIL_USER }}
-          GMAIL_APP_PASSWORD: ${{ secrets.EMAIL_PASS }}
-          EMAIL_TO:           ${{ secrets.TO_EMAIL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SENDGRID_API_KEY:  ${{ secrets.SENDGRID_API_KEY }}
+          EMAIL_FROM:        ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO:          ${{ secrets.TO_EMAIL }}
         run: python daily_email.py
         working-directory: agent-squad-python
 

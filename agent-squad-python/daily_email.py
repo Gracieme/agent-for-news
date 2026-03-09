@@ -8,11 +8,11 @@ import os
 import re
 import html
 import logging
-import smtplib
 from pathlib import Path
 from datetime import datetime
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+
+import sendgrid
+from sendgrid.helpers.mail import Mail
 
 import anthropic
 import sys
@@ -572,21 +572,18 @@ def build_email_html(
 # ══════════════════════════════════════════════════════════════════
 
 def send_email(subject: str, html_body: str):
-    gmail_user     = os.environ["GMAIL_USER"]
-    gmail_password = os.environ["GMAIL_APP_PASSWORD"]
-    to_addr        = os.environ["EMAIL_TO"]
+    api_key   = os.environ["SENDGRID_API_KEY"]
+    from_addr = os.environ["EMAIL_FROM"]
+    to_addr   = os.environ["EMAIL_TO"]
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = f"每日学习助手小队 <{gmail_user}>"
-    msg["To"]      = to_addr
-    msg.attach(MIMEText(html_body, "html", "utf-8"))
-
-    with smtplib.SMTP("smtp.gmail.com", 587) as server:
-        server.ehlo()
-        server.starttls()
-        server.login(gmail_user, gmail_password)
-        server.sendmail(gmail_user, to_addr, msg.as_string())
+    message = Mail(
+        from_email=(from_addr, "格雷西学习小屋"),
+        to_emails=to_addr,
+        subject=subject,
+        html_content=html_body,
+    )
+    sg = sendgrid.SendGridAPIClient(api_key=api_key)
+    sg.send(message)
 
 
 # ══════════════════════════════════════════════════════════════════
