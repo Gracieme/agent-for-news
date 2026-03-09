@@ -225,6 +225,14 @@ def e(s: str) -> str:
     return html.escape(str(s))
 
 
+def md(s: str) -> str:
+    """HTML-escape then convert inline markdown (**bold**, *italic*) to HTML tags."""
+    s = html.escape(str(s))
+    s = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', s)
+    s = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<em>\1</em>', s)
+    return s
+
+
 def english_to_html(text: str) -> str:
     parts = []
     current_section = None
@@ -298,7 +306,7 @@ def english_to_html(text: str) -> str:
 
         # Regular paragraph
         parts.append(
-            f'<p style="margin:6px 0;line-height:1.8;color:#333;font-size:14px">{e(s)}</p>'
+            f'<p style="margin:6px 0;line-height:1.8;color:#333;font-size:14px">{md(s)}</p>'
         )
 
     return "\n".join(parts)
@@ -327,7 +335,7 @@ def beauty_to_html(text: str) -> str:
             parts.append(
                 f'<div style="background:#fff9c4;border-left:4px solid #f9a825;'
                 f'padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0">'
-                f'<strong style="color:#e65100">{e(s)}</strong></div>'
+                f'<strong style="color:#e65100">{md(s)}</strong></div>'
             )
             continue
 
@@ -336,7 +344,7 @@ def beauty_to_html(text: str) -> str:
             parts.append(
                 f'<div style="background:#e0f7fa;border-left:4px solid #00bcd4;'
                 f'padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0">'
-                f'<strong style="color:#006064">{e(s)}</strong></div>'
+                f'<strong style="color:#006064">{md(s)}</strong></div>'
             )
             continue
 
@@ -348,7 +356,7 @@ def beauty_to_html(text: str) -> str:
                 f'<div style="display:flex;align-items:flex-start;margin:8px 0;'
                 f'padding:10px 14px;background:#fdf0f7;border-radius:8px">'
                 f'<span style="color:#e91e8c;font-weight:700;min-width:70px;font-size:13px">{e(step)}</span>'
-                f'<span style="color:#333;font-size:14px;line-height:1.7">{e(content)}</span>'
+                f'<span style="color:#333;font-size:14px;line-height:1.7">{md(content)}</span>'
                 f'</div>'
             )
             continue
@@ -358,7 +366,7 @@ def beauty_to_html(text: str) -> str:
             content = re.sub(r"^[-·•·]\s*", "", s)
             parts.append(
                 f'<div style="padding:4px 0 4px 16px;color:#444;font-size:14px;line-height:1.7">'
-                f'<span style="color:#e91e8c;margin-right:8px">✦</span>{e(content)}</div>'
+                f'<span style="color:#e91e8c;margin-right:8px">✦</span>{md(content)}</div>'
             )
             continue
 
@@ -367,7 +375,7 @@ def beauty_to_html(text: str) -> str:
             parts.append(
                 f'<div style="background:#fff3e0;border-left:4px solid #ff9800;'
                 f'padding:8px 16px;margin:10px 0;border-radius:0 6px 6px 0;'
-                f'color:#bf360c;font-size:13px">{e(s)}</div>'
+                f'color:#bf360c;font-size:13px">{md(s)}</div>'
             )
             continue
 
@@ -376,7 +384,7 @@ def beauty_to_html(text: str) -> str:
             continue
 
         parts.append(
-            f'<p style="margin:6px 0;line-height:1.8;color:#333;font-size:14px">{e(s)}</p>'
+            f'<p style="margin:6px 0;line-height:1.8;color:#333;font-size:14px">{md(s)}</p>'
         )
 
     return "\n".join(parts)
@@ -432,7 +440,7 @@ def research_to_html(text: str) -> str:
                     f'<td width="88" valign="top" style="color:{color};font-weight:600;'
                     f'font-size:13px;padding-right:8px;white-space:nowrap">{e(key_part)}</td>'
                     f'<td valign="top" style="color:#333;font-size:14px;line-height:1.7;{bold}">'
-                    f'{e(body_part)}</td>'
+                    f'{md(body_part)}</td>'
                     f'</tr></table>'
                 )
                 matched = True
@@ -446,7 +454,7 @@ def research_to_html(text: str) -> str:
 
         parts.append(
             f'<p style="margin:5px 0;line-height:1.8;color:#555;font-size:13px;'
-            f'padding-left:96px">{e(s)}</p>'
+            f'padding-left:96px">{md(s)}</p>'
         )
 
     if in_card:
