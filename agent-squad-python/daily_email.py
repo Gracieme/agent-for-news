@@ -217,7 +217,6 @@ def gen_research(today: str) -> str:
         f"今天是{today}，请为我推荐今日3篇学术论文。\n{focuses[day_mod]}\n"
         "请按照规定格式逐一呈现每篇论文的完整信息。",
         max_tokens=4000,
-        thinking={"type": "adaptive"},
     )
 
 
