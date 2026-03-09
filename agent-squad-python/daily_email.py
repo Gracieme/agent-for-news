@@ -139,6 +139,7 @@ emotional labor、autoethnography、policy implementation
 📊 引用量：（约X次（估计））
 📝 摘要：
 🔗 与本研究的关联性：
+🆔 DOI：（如 10.1000/xyz123，不确定请写"不详"）
 
 在每篇论文前写：━━━━━━━━━━━━━━━━━━━━━━━━
 然后写：📄 论文 N
@@ -406,18 +407,22 @@ def beauty_to_html(text: str) -> str:
 
 def research_to_html(text: str) -> str:
     """Parse paper entries and render as styled cards."""
+    import urllib.parse
     parts = []
 
     ICON_STYLES = {
         "📌": ("#c62828", "作者"),
         "📖": ("#1565c0", "标题"),
         "📰": ("#00838f", "期刊"),
+        "📅": ("#e65100", "年份"),
         "📊": ("#2e7d32", "引用量"),
         "📝": ("#4a148c", "摘要"),
         "🔗": ("#6a1b9a", "关联性"),
+        "🆔": ("#37474f", "DOI"),
     }
 
     in_card = False
+    current_title = ""
 
     for raw in text.splitlines():
         s = raw.strip()
@@ -437,6 +442,7 @@ def research_to_html(text: str) -> str:
                 f'font-weight:700;font-size:15px;letter-spacing:1px">{e(s)}</div>'
             )
             in_card = True
+            current_title = ""
             continue
 
         # Icon fields
@@ -446,6 +452,35 @@ def research_to_html(text: str) -> str:
                 key_end = s.find("：") + 1 if "：" in s else 2
                 key_part  = s[:key_end]
                 body_part = s[key_end:].strip()
+
+                # Save title for fallback link
+                if icon == "📖":
+                    current_title = body_part
+
+                # DOI field → render as clickable link
+                if icon == "🆔":
+                    doi = body_part.strip()
+                    if doi and doi != "不详" and re.match(r"10\.\d{4,}", doi):
+                        link_url  = f"https://doi.org/{doi}"
+                        link_text = doi
+                    else:
+                        # Fallback: Google Scholar search by title
+                        q = urllib.parse.quote(current_title or doi)
+                        link_url  = f"https://scholar.google.com/scholar?q={q}"
+                        link_text = "Google Scholar 搜索"
+                    parts.append(
+                        f'<table width="100%" cellpadding="0" cellspacing="0" '
+                        f'style="margin:7px 0;border-collapse:collapse"><tr>'
+                        f'<td width="88" valign="top" style="color:{color};font-weight:600;'
+                        f'font-size:13px;padding-right:8px;white-space:nowrap">{e(key_part)}</td>'
+                        f'<td valign="top" style="font-size:13px;line-height:1.7">'
+                        f'<a href="{e(link_url)}" target="_blank" '
+                        f'style="color:#1a73e8;text-decoration:none">🔍 {e(link_text)}</a>'
+                        f'</td></tr></table>'
+                    )
+                    matched = True
+                    break
+
                 bold = "font-weight:700;" if icon == "📖" else ""
                 parts.append(
                     f'<table width="100%" cellpadding="0" cellspacing="0" '
