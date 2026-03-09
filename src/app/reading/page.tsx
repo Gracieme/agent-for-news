@@ -25,25 +25,7 @@ interface SpreadOption {
   positions: string[];
 }
 
-const ALL_SPREADS: SpreadOption[] = [
-  ...SPREADS,
-  {
-    id: "relationship",
-    name: "关系牌阵",
-    description: "两人关系 · 感情分析",
-    count: 4,
-    emoji: "💕",
-    positions: ["你的能量", "对方能量", "关系核心", "建议"]
-  },
-  {
-    id: "career",
-    name: "工作牌阵",
-    description: "事业方向 · 职业决策",
-    count: 5,
-    emoji: "💼",
-    positions: ["现状", "阻碍", "建议", "潜力", "结果"]
-  },
-];
+const ALL_SPREADS: SpreadOption[] = SPREADS;
 
 export default function ReadingPage() {
   const { isSignedIn, user } = useUser();
@@ -55,7 +37,7 @@ export default function ReadingPage() {
   const [recommendReason, setRecommendReason] = useState("");
   const [refinedQuestion, setRefinedQuestion] = useState("");
   const [recommending, setRecommending] = useState(false);
-  const [selectedSpread, setSelectedSpread] = useState<SpreadOption>(ALL_SPREADS[1]);
+  const [selectedSpread, setSelectedSpread] = useState<SpreadOption>(ALL_SPREADS.find(s => s.id === "three") ?? ALL_SPREADS[0]);
   const [drawnCards, setDrawnCards] = useState<DrawnCard[]>([]);
   const [interpretation, setInterpretation] = useState("");
   const [loading, setLoading] = useState(false);

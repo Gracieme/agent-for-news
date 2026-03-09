@@ -68,7 +68,7 @@ ${cardDescriptions}
 - 说明「为什么可能失败」（牌面提示的风险或阻碍）
 - 语气仍可温暖，但结论要清晰、可执行。避免「可能可以」「要看情况」等含糊表述。
 
-语气专业而温暖，像一位懂你的智慧朋友。全程中文，300-500字。`;
+语气专业而温暖，像一位懂你的智慧朋友。全程使用中文，严禁出现任何英文单词或英文章节标题，300-500字。`;
 
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     const result = await model.generateContent(prompt);

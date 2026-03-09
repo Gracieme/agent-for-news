@@ -353,5 +353,14 @@ export function drawCards(count: number): TarotCard[] {
 export const SPREADS = [
   { id: "single", name: "单牌占卜", description: "快速洞察当下能量", count: 1, emoji: "🃏", positions: ["当下能量"] },
   { id: "three", name: "三牌展开", description: "过去・现在・未来", count: 3, emoji: "🌙", positions: ["过去", "现在", "未来"] },
+  { id: "yesno", name: "是非指引", description: "两张牌看支持与阻力", count: 2, emoji: "⚖️", positions: ["支持的能量", "阻碍的能量"] },
+  { id: "mindBodySoul", name: "身心灵三角", description: "行动・感受・精神", count: 3, emoji: "🔺", positions: ["行动/身体", "感受/情绪", "精神/思维"] },
+  { id: "newMoon", name: "新月许愿", description: "意图・行动・结果", count: 3, emoji: "🌑", positions: ["当下意图", "需要的行动", "可能的结果"] },
+  { id: "relationship", name: "关系牌阵", description: "两人关系・感情分析", count: 4, emoji: "💕", positions: ["你的能量", "对方能量", "关系核心", "建议"] },
+  { id: "selfGrowth", name: "自我成长", description: "现状・阻力・突破・潜力", count: 4, emoji: "🌱", positions: ["当前状态", "内在阻力", "需要突破之处", "潜藏的力量"] },
+  { id: "career", name: "工作牌阵", description: "事业方向・职业决策", count: 5, emoji: "💼", positions: ["现状", "阻碍", "建议", "潜力", "结果"] },
   { id: "celtic", name: "凯尔特十字", description: "深度全面解读", count: 5, emoji: "✨", positions: ["核心", "挑战", "过去", "未来", "结果"] },
+  { id: "moonCycle", name: "月亮周期", description: "六张牌・深度能量梳理", count: 6, emoji: "🌕", positions: ["当前能量", "隐藏因素", "需要放下", "需要接纳", "下一步行动", "月圆指引"] },
+  { id: "decision", name: "决策天平", description: "选项A与选项B的全面对比", count: 6, emoji: "🔮", positions: ["选项A能量", "选项A阻力", "选项A结果", "选项B能量", "选项B阻力", "选项B结果"] },
+  { id: "chakra", name: "七脉轮", description: "身体七个能量中心的洞察", count: 7, emoji: "🌈", positions: ["根轮·安全感", "骶轮·创造力", "太阳轮·自信", "心轮·爱", "喉轮·表达", "眉心轮·直觉", "顶轮·灵性"] },
 ];
