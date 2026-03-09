@@ -3,7 +3,13 @@
 const SECTION_HEADERS = ["整体能量", "逐牌解读", "综合洞见", "给你的指引"];
 
 function cleanText(t: string): string {
-  return t.replace(/\*\*/g, "").trim();
+  return t
+    .replace(/\*\*/g, "")   // 粗体
+    .replace(/\*/g, "")     // 斜体
+    .replace(/^#{1,6}\s*/gm, "")  // 标题符号
+    .replace(/_{1,2}([^_]+)_{1,2}/g, "$1")  // 下划线
+    .replace(/`/g, "")      // 代码块
+    .trim();
 }
 
 /** 解析并渲染解读内容 - 纯文字，无符号 */

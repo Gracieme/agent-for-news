@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
 抽到的牌：
 ${cardDescriptions}
 
-请按以下结构给出完整解读。小标题直接写纯文字，不要用 ** 或任何 Markdown 符号：
+请按以下结构给出完整解读。输出纯文字，绝对不能使用任何 Markdown 格式（禁止 **、*、#、_、` 等所有符号）：
 
 整体能量
 （2-3句，描述这组牌的整体氛围）
