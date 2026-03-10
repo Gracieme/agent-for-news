@@ -1,113 +1,55 @@
 "use client";
 import React from "react";
 
-type Placement = { col: number; row: number };
-type LayoutConfig = { cols: number; rows: number; placements: Placement[] };
-
-const LAYOUTS: Record<string, LayoutConfig> = {
-  // 1张
-  single: {
-    cols: 1, rows: 1,
-    placements: [{ col: 1, row: 1 }],
-  },
-  // 2张 横排
-  yesno: {
-    cols: 2, rows: 1,
-    placements: [{ col: 1, row: 1 }, { col: 2, row: 1 }],
-  },
-  // 3张 横排
-  three: {
-    cols: 3, rows: 1,
-    placements: [{ col: 1, row: 1 }, { col: 2, row: 1 }, { col: 3, row: 1 }],
-  },
-  newMoon: {
-    cols: 3, rows: 1,
-    placements: [{ col: 1, row: 1 }, { col: 2, row: 1 }, { col: 3, row: 1 }],
-  },
-  // 3张 三角（顶部居中，底部左右）
-  mindBodySoul: {
-    cols: 3, rows: 2,
-    placements: [
-      { col: 2, row: 1 }, // 行动/身体 — 顶中
-      { col: 1, row: 2 }, // 感受/情绪 — 左下
-      { col: 3, row: 2 }, // 精神/思维 — 右下
-    ],
-  },
-  // 4张 2×2
-  relationship: {
-    cols: 2, rows: 2,
-    placements: [
-      { col: 1, row: 1 }, { col: 2, row: 1 },
-      { col: 1, row: 2 }, { col: 2, row: 2 },
-    ],
-  },
-  // 4张 菱形十字
-  selfGrowth: {
-    cols: 3, rows: 3,
-    placements: [
-      { col: 2, row: 1 }, // 内在阻力 — 上
-      { col: 1, row: 2 }, // 当前状态 — 左
-      { col: 3, row: 2 }, // 需要突破 — 右
-      { col: 2, row: 3 }, // 潜藏力量 — 下
-    ],
-  },
-  // 5张 横排
-  career: {
-    cols: 5, rows: 1,
-    placements: [
-      { col: 1, row: 1 }, { col: 2, row: 1 }, { col: 3, row: 1 },
-      { col: 4, row: 1 }, { col: 5, row: 1 },
-    ],
-  },
-  // 5张 凯尔特十字
-  celtic: {
-    cols: 3, rows: 3,
-    placements: [
-      { col: 2, row: 2 }, // 核心 — 中
-      { col: 3, row: 2 }, // 挑战 — 右
-      { col: 1, row: 2 }, // 过去 — 左
-      { col: 2, row: 1 }, // 未来 — 上
-      { col: 2, row: 3 }, // 结果 — 下
-    ],
-  },
-  // 6张 3×2
-  moonCycle: {
-    cols: 3, rows: 2,
-    placements: [
-      { col: 1, row: 1 }, { col: 2, row: 1 }, { col: 3, row: 1 },
-      { col: 1, row: 2 }, { col: 2, row: 2 }, { col: 3, row: 2 },
-    ],
-  },
-  // 6张 2×3（左A右B）
-  decision: {
-    cols: 2, rows: 3,
-    placements: [
-      { col: 1, row: 1 }, { col: 2, row: 1 },
-      { col: 1, row: 2 }, { col: 2, row: 2 },
-      { col: 1, row: 3 }, { col: 2, row: 3 },
-    ],
-  },
-  // 7张 横排
-  chakra: {
-    cols: 7, rows: 1,
-    placements: [
-      { col: 1, row: 1 }, { col: 2, row: 1 }, { col: 3, row: 1 },
-      { col: 4, row: 1 }, { col: 5, row: 1 }, { col: 6, row: 1 },
-      { col: 7, row: 1 },
-    ],
-  },
+// 每行的牌索引，null = 空位（占位但不显示）
+const LAYOUT_ROWS: Record<string, (number | null)[][]> = {
+  single:       [[0]],
+  yesno:        [[0, 1]],
+  three:        [[0, 1, 2]],
+  newMoon:      [[0, 1, 2]],
+  // 三角：顶中，底左右
+  mindBodySoul: [
+    [null, 0, null],
+    [1,    null,  2],
+  ],
+  // 2×2
+  relationship: [
+    [0, 1],
+    [2, 3],
+  ],
+  // 菱形十字
+  selfGrowth: [
+    [null, 1, null],
+    [0,    null,  2],
+    [null, 3, null],
+  ],
+  career: [[0, 1, 2, 3, 4]],
+  // 凯尔特十字
+  celtic: [
+    [null, 3, null],  // 未来
+    [2,    0,    1],  // 过去 · 核心 · 挑战
+    [null, 4, null],  // 结果
+  ],
+  moonCycle: [
+    [0, 1, 2],
+    [3, 4, 5],
+  ],
+  // 左A右B
+  decision: [
+    [0, 1],
+    [2, 3],
+    [4, 5],
+  ],
+  chakra: [[0, 1, 2, 3, 4, 5, 6]],
 };
 
-function getDefaultLayout(count: number): LayoutConfig {
+function getDefaultRows(count: number): (number | null)[][] {
   const cols = Math.min(count, 4);
-  return {
-    cols,
-    rows: Math.ceil(count / cols),
-    placements: Array.from({ length: count }, (_, i) => ({
-      col: (i % cols) + 1,
-      row: Math.floor(i / cols) + 1,
-    })),
-  };
+  const rows: (number | null)[][] = [];
+  for (let i = 0; i < count; i += cols) {
+    rows.push(Array.from({ length: cols }, (_, j) => (i + j < count ? i + j : null)));
+  }
+  return rows;
 }
 
 interface SpreadLayoutProps {
@@ -117,32 +59,36 @@ interface SpreadLayoutProps {
 }
 
 export default function SpreadLayout({ spreadId, count, children }: SpreadLayoutProps) {
-  const layout = LAYOUTS[spreadId] ?? getDefaultLayout(count);
+  const rows = LAYOUT_ROWS[spreadId] ?? getDefaultRows(count);
   const childArray = React.Children.toArray(children);
+  const maxCols = Math.max(...rows.map((r) => r.length));
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: `repeat(${layout.cols}, minmax(0, 1fr))`,
-        gridTemplateRows: `repeat(${layout.rows}, auto)`,
-        gap: "16px",
-        justifyItems: "center",
-        alignItems: "start",
-      }}
-    >
-      {childArray.map((child, i) => {
-        const placement = layout.placements[i];
-        if (!placement) return null;
-        return (
-          <div
-            key={i}
-            style={{ gridColumn: placement.col, gridRow: placement.row, width: "100%" }}
-          >
-            {child}
-          </div>
-        );
-      })}
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px", alignItems: "center", width: "100%" }}>
+      {rows.map((row, rowIdx) => (
+        <div
+          key={rowIdx}
+          style={{
+            display: "grid",
+            gridTemplateColumns: `repeat(${maxCols}, 1fr)`,
+            gap: "12px",
+            width: "100%",
+          }}
+        >
+          {row.map((cardIdx, colIdx) => (
+            <div
+              key={colIdx}
+              style={{
+                visibility: cardIdx === null ? "hidden" : "visible",
+                display: "flex",
+                justifyContent: "center",
+              }}
+            >
+              {cardIdx !== null ? childArray[cardIdx] : null}
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
