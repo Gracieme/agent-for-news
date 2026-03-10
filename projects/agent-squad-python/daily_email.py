@@ -143,7 +143,6 @@ emotional labor、autoethnography、policy implementation
 📊 引用量：（约X次（估计））
 📝 摘要：
 🔗 与本研究的关联性：
-🆔 DOI：（如 10.1000/xyz123，不确定请写"不详"）
 
 在每篇论文前写：━━━━━━━━━━━━━━━━━━━━━━━━
 然后写：📄 论文 N
