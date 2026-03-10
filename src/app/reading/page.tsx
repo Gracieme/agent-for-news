@@ -36,7 +36,8 @@ export default function ReadingPage() {
   const [situation, setSituation] = useState("");
   const [recommendedSpread, setRecommendedSpread] = useState<SpreadOption | null>(null);
   const [recommendReason, setRecommendReason] = useState("");
-  const [refinedQuestion, setRefinedQuestion] = useState("");
+  const [aiSuggestedQuestion, setAiSuggestedQuestion] = useState(""); // AI 建议
+  const [refinedQuestion, setRefinedQuestion] = useState("");          // 用户最终选择
   const [recommending, setRecommending] = useState(false);
   const [selectedSpread, setSelectedSpread] = useState<SpreadOption>(ALL_SPREADS.find(s => s.id === "three") ?? ALL_SPREADS[0]);
   const [drawnCards, setDrawnCards] = useState<DrawnCard[]>([]);
@@ -62,7 +63,8 @@ export default function ReadingPage() {
       const spread = ALL_SPREADS.find(s => s.id === data.spreadId) || ALL_SPREADS[1];
       setRecommendedSpread(spread);
       setRecommendReason(data.reason || "");
-      setRefinedQuestion(""); // 不修改原始问题
+      setAiSuggestedQuestion(data.refinedQuestion || "");
+      setRefinedQuestion(""); // 默认用原始问题
       setStep("spread");
     } catch {
       setStep("spread");
@@ -143,6 +145,7 @@ export default function ReadingPage() {
     setSituation("");
     setRecommendedSpread(null);
     setRecommendReason("");
+    setAiSuggestedQuestion("");
     setRefinedQuestion("");
     setDrawnCards([]);
     setInterpretation("");
@@ -213,9 +216,38 @@ export default function ReadingPage() {
                     <div className="text-sm" style={{ color: "var(--text-muted)" }}>{recommendReason}</div>
                   </div>
                 </div>
-                {refinedQuestion && refinedQuestion !== situation && (
-                  <div className="mt-3 px-4 py-2 rounded-xl text-sm" style={{ background: "rgba(155,168,141,0.15)", color: "var(--sage-deep)" }}>
-                    优化后的问题：「{refinedQuestion}」
+                {aiSuggestedQuestion && aiSuggestedQuestion !== situation && (
+                  <div className="mt-4 text-left rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(155,168,141,0.3)" }}>
+                    <div className="px-4 py-2 text-xs font-medium" style={{ background: "rgba(155,168,141,0.12)", color: "var(--sage-deep)" }}>
+                      ✨ AI 建议优化你的问题，请选择使用哪个：
+                    </div>
+                    <button
+                      onClick={() => setRefinedQuestion("")}
+                      className="w-full px-4 py-3 text-left text-sm transition-all flex items-center gap-2"
+                      style={{
+                        background: refinedQuestion === "" ? "rgba(139,154,125,0.15)" : "transparent",
+                        color: "var(--text-warm)",
+                        borderBottom: "1px solid rgba(155,168,141,0.2)",
+                      }}
+                    >
+                      <span style={{ color: "var(--sage-deep)", fontWeight: "bold", minWidth: 16 }}>
+                        {refinedQuestion === "" ? "●" : "○"}
+                      </span>
+                      <span><span style={{ color: "var(--text-muted)", fontSize: 11 }}>原始问题　</span>「{situation}」</span>
+                    </button>
+                    <button
+                      onClick={() => setRefinedQuestion(aiSuggestedQuestion)}
+                      className="w-full px-4 py-3 text-left text-sm transition-all flex items-center gap-2"
+                      style={{
+                        background: refinedQuestion === aiSuggestedQuestion ? "rgba(139,154,125,0.15)" : "transparent",
+                        color: "var(--text-warm)",
+                      }}
+                    >
+                      <span style={{ color: "var(--sage-deep)", fontWeight: "bold", minWidth: 16 }}>
+                        {refinedQuestion === aiSuggestedQuestion ? "●" : "○"}
+                      </span>
+                      <span><span style={{ color: "var(--text-muted)", fontSize: 11 }}>优化问题　</span>「{aiSuggestedQuestion}」</span>
+                    </button>
                   </div>
                 )}
                 <button
