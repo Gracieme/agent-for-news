@@ -8,7 +8,7 @@ build_site.py — 格雷西学习小屋 静态网站生成器
 import json
 from pathlib import Path
 
-WEBSITE_DIR = Path(__file__).parent.parent / "docs"
+WEBSITE_DIR = Path(__file__).parent.parent.parent / "docs"
 DATA_DIR    = WEBSITE_DIR / "data"
 
 
