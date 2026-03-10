@@ -157,7 +157,7 @@ export default function HomePage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl w-full">
           {[
             { emoji: "📖", title: "小白入门", desc: "从零了解塔罗、学会怎么问问题、什么情况用什么牌阵", href: "/learn" },
-            { emoji: "☽", title: "AI推荐牌阵", desc: "描述你的情况，AI根据Gracie老师方法帮你选最合适的牌阵", href: "/reading" },
+            { emoji: "🃏", title: "选择牌阵指南", desc: "12种牌阵一览，快速找到适合你当下问题的那一个", href: "/spreads" },
             { emoji: "✦", title: "融合老师解读", desc: "融入Gracie塔罗课程知识体系，解读更专业、更有深度", href: "/reading" },
           ].map((item, i) => (
             <Link
