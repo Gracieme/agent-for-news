@@ -7,6 +7,7 @@ import Link from "next/link";
 import { TarotCard, SPREADS } from "@/lib/tarot-data";
 import CardDeck from "@/components/CardDeck";
 import InterpretationContent from "@/components/InterpretationContent";
+import SpreadLayout from "@/components/SpreadLayout";
 
 type Step = "situation" | "spread" | "draw" | "result";
 
@@ -270,6 +271,7 @@ export default function ReadingPage() {
               )}
             </div>
             <CardDeck
+              spreadId={selectedSpread.id}
               count={selectedSpread.count}
               positions={selectedSpread.positions}
               onComplete={handleCardsComplete}
@@ -289,11 +291,11 @@ export default function ReadingPage() {
               </p>
             </div>
 
-            {/* 牌面 - 简洁清晰 */}
+            {/* 牌面 */}
             <div className="mb-10">
-              <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+              <SpreadLayout spreadId={selectedSpread.id} count={drawnCards.length}>
                 {drawnCards.map((card, i) => (
-                  <div key={i} className="glass rounded-xl p-4 text-center min-w-0">
+                  <div key={i} className="glass rounded-xl p-3 text-center">
                     <div className="text-xs font-medium tracking-wide mb-1" style={{ color: "var(--sage-deep)" }}>
                       {card.position}
                     </div>
@@ -306,7 +308,7 @@ export default function ReadingPage() {
                     )}
                   </div>
                 ))}
-              </div>
+              </SpreadLayout>
             </div>
 
             {/* 解读内容 */}

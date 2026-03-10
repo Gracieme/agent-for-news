@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ALL_CARDS, TarotCard } from "@/lib/tarot-data";
+import SpreadLayout from "@/components/SpreadLayout";
 
 /* Gracie 风格牌背 SVG：植物学月亮图案，神秘清新优雅 */
 function CardBackSVG({ width, height, hover = false }: { width: number; height: number; hover?: boolean }) {
@@ -69,6 +70,7 @@ interface DrawnCard extends TarotCard {
 }
 
 interface CardDeckProps {
+  spreadId: string;
   count: number;
   positions: string[];
   onComplete: (cards: DrawnCard[]) => void;
@@ -78,7 +80,7 @@ const shuffleDeck = () => [...ALL_CARDS].sort(() => Math.random() - 0.5);
 
 const DECK_VISUAL_COUNT = 8; // 洗牌时展示的牌数量
 
-export default function CardDeck({ count, positions, onComplete }: CardDeckProps) {
+export default function CardDeck({ spreadId, count, positions, onComplete }: CardDeckProps) {
   const [shuffled, setShuffled] = useState(shuffleDeck);
   const [drawn, setDrawn] = useState<number[]>([]);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
@@ -381,19 +383,18 @@ export default function CardDeck({ count, positions, onComplete }: CardDeckProps
             </p>
           </div>
 
-          <div className="flex gap-5 justify-center flex-wrap">
+          <SpreadLayout spreadId={spreadId} count={count}>
             {drawn.map((cardIdx, i) => {
               const card = shuffled[cardIdx];
               const isFlipped = flipped.has(i);
               const reversed = reversedMap.current[i] ?? false;
-
               return (
                 <div key={i} className="flex flex-col items-center gap-2">
                   <div className="text-xs font-medium" style={{ color: "var(--sage-deep)" }}>
                     {positions[i]}
                   </div>
                   <div
-                    style={{ width: "110px", height: "165px", perspective: "1000px", cursor: isFlipped ? "default" : "pointer" }}
+                    style={{ width: "90px", height: "135px", perspective: "1000px", cursor: isFlipped ? "default" : "pointer" }}
                     onClick={() => !isFlipped && handleFlip(i)}
                   >
                     <div style={{
@@ -402,32 +403,28 @@ export default function CardDeck({ count, positions, onComplete }: CardDeckProps
                       transition: "transform 0.65s cubic-bezier(0.4,0,0.2,1)",
                       transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)"
                     }}>
-                      {/* 牌背 - Gracie 风格：植物学月亮图案，神秘清新优雅（78张共用） */}
                       <div style={{
-                        position: "absolute", inset: 0, backfaceVisibility: "hidden", borderRadius: "14px",
+                        position: "absolute", inset: 0, backfaceVisibility: "hidden", borderRadius: "12px",
                         overflow: "hidden", boxShadow: "0 6px 24px rgba(139,154,125,0.2)",
                       }}>
-                        <CardBackSVG width={110} height={165} />
+                        <CardBackSVG width={90} height={135} />
                       </div>
-                      {/* 牌面 */}
                       <div style={{
                         position: "absolute", inset: 0, backfaceVisibility: "hidden",
-                        transform: "rotateY(180deg)", borderRadius: "14px",
+                        transform: "rotateY(180deg)", borderRadius: "12px",
                         background: "linear-gradient(145deg, #FCFAF6 0%, #F8F5F0 100%)",
                         border: "1px solid rgba(155,168,141,0.3)",
                         display: "flex", flexDirection: "column", alignItems: "center",
-                        justifyContent: "center", padding: "10px",
+                        justifyContent: "center", padding: "8px",
                         boxShadow: "0 6px 20px rgba(139,154,125,0.15)"
                       }}>
-                        <div style={{ fontSize: "34px", marginBottom: "6px" }}>
-                          {card.imageEmoji}
-                        </div>
-                        <div style={{ fontSize: "12px", fontWeight: "bold", color: "var(--text-warm)", textAlign: "center" }}>
+                        <div style={{ fontSize: "28px", marginBottom: "4px" }}>{card.imageEmoji}</div>
+                        <div style={{ fontSize: "11px", fontWeight: "bold", color: "var(--text-warm)", textAlign: "center" }}>
                           {card.nameZh}
                         </div>
-                        <div style={{ fontSize: "10px", marginTop: "4px", color: "var(--text-muted)", textAlign: "center" }}>
-                          {card.name}
-                        </div>
+                        {reversed && (
+                          <div style={{ fontSize: "10px", marginTop: "2px", color: "var(--text-muted)" }}>逆位</div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -437,7 +434,7 @@ export default function CardDeck({ count, positions, onComplete }: CardDeckProps
                 </div>
               );
             })}
-          </div>
+          </SpreadLayout>
         </>
       )}
     </div>
