@@ -25,7 +25,7 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
-        working-directory: agent-squad-python
+        working-directory: projects/agent-squad-python
 
       - name: Send daily email & build site
         env:
@@ -34,7 +34,7 @@ jobs:
           EMAIL_FROM:        ${{ secrets.EMAIL_FROM }}
           EMAIL_TO:          ${{ secrets.TO_EMAIL }}
         run: python daily_email.py
-        working-directory: agent-squad-python
+        working-directory: projects/agent-squad-python
 
       - name: Commit updated website files
         run: |
