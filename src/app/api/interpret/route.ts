@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
 import { buildTeacherKnowledgePrompt } from "@/lib/teacher-knowledge";
 import { getVideoKnowledge } from "@/lib/video-knowledge-store";
+import { DimensionEntry, TimingReference } from "@/lib/reading-types";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
       ? `\n\n【以下来自Gracie老师课程视频提取的解读知识，请严格融入你的解读逻辑和风格】\n\n${combinedVideoKnowledge}\n`
       : "";
 
-    const prompt = `${teacherKnowledge}${videoContext}
+    const prosePrompt = `${teacherKnowledge}${videoContext}
 
 ---
 
@@ -80,11 +81,90 @@ ${cardDescriptions}
 
 语气专业而温暖，像一位懂你的智慧朋友。全程使用中文，严禁出现任何英文单词或英文章节标题，300-500字。`;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const result = await model.generateContent(prompt);
-    const interpretation = result.response.text();
+    const jsonPrompt = `你是塔罗六维度分析助手。请对以下抽到的牌，严格输出一个JSON对象，不要输出任何JSON以外的文字，不要用代码块包裹。
 
-    return NextResponse.json({ interpretation });
+牌阵：${spreadType}
+问题：${question || "宇宙自由指引"}
+
+抽到的牌：
+${cardDescriptions}
+
+输出格式（必须严格遵守，全部中文）：
+{
+  "dimensions": [
+    {
+      "cardName": "牌的中文名",
+      "reversed": false,
+      "numerology": {
+        "number": 1,
+        "energy": "开创能量",
+        "meaning": "数字1代表新开始与独立意志，是所有事物的起点"
+      },
+      "color": {
+        "dominant": ["红色", "白色"],
+        "signals": "红色象征行动力与热情；白色代表纯洁与精神清明"
+      },
+      "astrology": {
+        "sign": "双子座",
+        "planet": "水星",
+        "influence": "水星赋予沟通与思维敏锐的能力"
+      },
+      "elements": {
+        "composition": "风元素主导",
+        "analysis": "思维活跃灵动，擅长沟通与变通"
+      },
+      "symbolism": {
+        "symbols": ["无限符号∞", "权杖"],
+        "interpretation": "无限符号代表无尽潜力，四件工具代表掌握所有资源"
+      },
+      "kabbalah": {
+        "path": "路径12",
+        "planets": "冥王星 ↔ 土星",
+        "depth": "将无形力量通过秩序具象化"
+      }
+    }
+  ],
+  "timing": {
+    "cardName": "最核心位置的牌名",
+    "cardNumber": 1,
+    "suit": null,
+    "weeksEstimate": 1,
+    "zodiacMonth": null,
+    "summary": "基于魔术师（数字1）→ 约1周内可能出现变化"
+  }
+}
+
+规则：
+- dimensions数组长度必须等于牌的数量（${cards.length}张）
+- reversed字段根据实际逆正位填写
+- timing使用牌阵中最核心/代表结果的那张牌；数字周算法：牌面数字=周数；若是小牌则suit填写元素（cups/wands/swords/pentacles）
+- 大阿卡纳的suit填null；zodiacMonth填null
+- kabbalah字段如无明确对应可省略
+- cardNumber为null时weeksEstimate也填null`;
+
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+    // 两个调用并行，不增加等待时间
+    const [proseResult, jsonResult] = await Promise.all([
+      model.generateContent(prosePrompt),
+      model.generateContent(jsonPrompt),
+    ]);
+
+    const interpretation = proseResult.response.text();
+
+    let dimensions: DimensionEntry[] = [];
+    let timing: TimingReference | null = null;
+    try {
+      const raw = jsonResult.response.text().trim()
+        .replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/, "");
+      const parsed = JSON.parse(raw);
+      dimensions = parsed.dimensions ?? [];
+      timing = parsed.timing ?? null;
+    } catch {
+      // 静默降级，UI不显示六维度
+    }
+
+    return NextResponse.json({ interpretation, dimensions, timing });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error("Gemini interpret error:", msg);

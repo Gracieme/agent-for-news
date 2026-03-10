@@ -4,12 +4,17 @@ import { useState } from "react";
 import { useUser, UserButton } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { TarotCard, SPREADS } from "@/lib/tarot-data";
+import { TarotCard, SPREADS, SPREAD_GUIDE, drawCards } from "@/lib/tarot-data";
 import CardDeck from "@/components/CardDeck";
 import InterpretationContent from "@/components/InterpretationContent";
 import SpreadLayout from "@/components/SpreadLayout";
+import SixDimensionPanel from "@/components/SixDimensionPanel";
+import TimingReference from "@/components/TimingReference";
+import CardDetailModal from "@/components/CardDetailModal";
+import { DimensionEntry, TimingReference as TimingData } from "@/lib/reading-types";
+import { calculateTiming } from "@/lib/timing-utils";
 
-type Step = "situation" | "spread" | "draw" | "result";
+type Step = "situation" | "spread" | "verify" | "draw" | "result";
 
 interface DrawnCard extends TarotCard {
   position: string;
@@ -39,10 +44,20 @@ export default function ReadingPage() {
   const [aiSuggestedQuestion, setAiSuggestedQuestion] = useState(""); // AI 建议
   const [refinedQuestion, setRefinedQuestion] = useState("");          // 用户最终选择
   const [recommending, setRecommending] = useState(false);
+  const [showSpreadGuide, setShowSpreadGuide] = useState(false);
   const [selectedSpread, setSelectedSpread] = useState<SpreadOption>(ALL_SPREADS.find(s => s.id === "three") ?? ALL_SPREADS[0]);
   const [drawnCards, setDrawnCards] = useState<DrawnCard[]>([]);
   const [interpretation, setInterpretation] = useState("");
+  const [dimensions, setDimensions] = useState<DimensionEntry[]>([]);
+  const [timing, setTiming] = useState<TimingData | null>(null);
+  const [selectedCard, setSelectedCard] = useState<DrawnCard | null>(null);
   const [loading, setLoading] = useState(false);
+  // 验证过去步骤
+  const [verifyEvent, setVerifyEvent] = useState("");
+  const [verifyCard, setVerifyCard] = useState<DrawnCard | null>(null);
+  const [verifyLevel, setVerifyLevel] = useState<"high" | "medium" | "low" | null>(null);
+  const [verifyExplanation, setVerifyExplanation] = useState("");
+  const [verifyLoading, setVerifyLoading] = useState(false);
 
   if (!isSignedIn) { router.push("/sign-in"); return null; }
 
@@ -74,7 +89,29 @@ export default function ReadingPage() {
 
   const handleSelectSpread = (spread: SpreadOption) => {
     setSelectedSpread(spread);
-    setStep("draw");
+    setStep("verify");
+  };
+
+  const handleDrawVerifyCard = async () => {
+    if (!verifyEvent.trim()) return;
+    const [raw] = drawCards(1);
+    const card: DrawnCard = { ...raw, position: "验证牌", reversed: Math.random() < 0.3, flipped: true };
+    setVerifyCard(card);
+    setVerifyLoading(true);
+    try {
+      const res = await fetch("/api/verify-past", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pastEvent: verifyEvent, card }),
+      });
+      const data = await res.json();
+      setVerifyLevel(data.level ?? "medium");
+      setVerifyExplanation(data.explanation ?? data.raw ?? "");
+    } catch {
+      setVerifyLevel("medium");
+      setVerifyExplanation("验证服务暂时不可用，请继续正式占卜。");
+    }
+    setVerifyLoading(false);
   };
 
   const handleCardsComplete = (cards: DrawnCard[]) => {
@@ -111,6 +148,8 @@ export default function ReadingPage() {
       });
       const data = await res.json();
       setInterpretation(data.interpretation || data.error);
+      setDimensions(data.dimensions ?? []);
+      setTiming(data.timing ?? null);
 
       if (user && data.interpretation) {
         const record = {
@@ -149,6 +188,12 @@ export default function ReadingPage() {
     setRefinedQuestion("");
     setDrawnCards([]);
     setInterpretation("");
+    setDimensions([]);
+    setTiming(null);
+    setVerifyEvent("");
+    setVerifyCard(null);
+    setVerifyLevel(null);
+    setVerifyExplanation("");
   };
 
   return (
@@ -260,6 +305,45 @@ export default function ReadingPage() {
               </div>
             )}
 
+            <div className="mb-4">
+              <button
+                onClick={() => setShowSpreadGuide(!showSpreadGuide)}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl transition-colors"
+                style={{
+                  background: showSpreadGuide ? "rgba(139,154,125,0.12)" : "rgba(139,154,125,0.06)",
+                  color: "var(--sage-deep)",
+                  border: "1px solid rgba(139,154,125,0.25)",
+                }}
+              >
+                <span>{showSpreadGuide ? "▼" : "▶"}</span>
+                <span className="font-medium">📖 牌阵选择说明 · 自己选时可参考</span>
+              </button>
+              {showSpreadGuide && (
+                <div
+                  className="mt-3 rounded-xl p-5 text-left overflow-y-auto max-h-[320px]"
+                  style={{ background: "rgba(250,249,246,0.9)", border: "1px solid rgba(139,154,125,0.2)" }}
+                >
+                  <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>
+                    根据你的问题类型，选择最合适的牌阵
+                  </p>
+                  <div className="space-y-4">
+                    {SPREAD_GUIDE.map((s) => (
+                      <div key={s.id} className="flex gap-3">
+                        <span className="text-xl flex-shrink-0">{s.emoji}</span>
+                        <div>
+                          <div className="font-bold text-sm" style={{ color: "var(--text-warm)" }}>
+                            {s.name}
+                          </div>
+                          <div className="text-xs mt-0.5" style={{ color: "var(--text-muted)", lineHeight: 1.6 }}>
+                            {s.scenarios}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
             <h3 className="text-center text-lg font-bold mb-4" style={{ color: "var(--text-warm)" }}>
               {recommendedSpread ? "或选择其他牌阵" : "选择牌阵"}
             </h3>
@@ -284,6 +368,103 @@ export default function ReadingPage() {
               <button onClick={() => setStep("situation")} className="text-sm" style={{ color: "var(--text-muted)" }}>
                 ← 返回
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* 步骤二·五：验证过去（可选） */}
+        {step === "verify" && (
+          <div className="fade-in">
+            <div className="text-center mb-8">
+              <div className="text-4xl mb-3">🔍</div>
+              <h2 className="text-2xl font-bold mb-2" style={{ color: "var(--text-warm)" }}>提升准确度</h2>
+              <p className="text-sm max-w-sm mx-auto" style={{ color: "var(--text-muted)" }}>
+                先用一件过去的事验证一下，能让宇宙「找准你的频道」，后续解读会更准
+              </p>
+            </div>
+
+            {/* 未开始验证 */}
+            {!verifyCard && (
+              <div className="space-y-4">
+                <div className="glass rounded-2xl p-6">
+                  <label className="block text-sm font-semibold mb-3" style={{ color: "var(--text-warm)" }}>
+                    描述一件一两个月前发生的事
+                  </label>
+                  <textarea
+                    className="w-full rounded-xl p-4 text-sm resize-none outline-none"
+                    style={{ background: "rgba(255,255,255,0.7)", color: "var(--text-warm)", minHeight: "90px", border: "1px solid rgba(139,154,125,0.2)" }}
+                    placeholder="例如：上个月和朋友闹了矛盾，最后还是我先道歉了...&#10;或者：两个月前换了新工作，入职后发现和预期差别很大..."
+                    value={verifyEvent}
+                    onChange={e => setVerifyEvent(e.target.value)}
+                  />
+                  <button
+                    onClick={handleDrawVerifyCard}
+                    disabled={!verifyEvent.trim()}
+                    className="mt-4 w-full py-3 rounded-xl text-white font-semibold transition-all hover:opacity-90 disabled:opacity-40"
+                    style={{ background: "var(--sage-deep)" }}
+                  >
+                    抽一张牌来验证
+                  </button>
+                </div>
+                <button
+                  onClick={() => setStep("draw")}
+                  className="w-full py-3 rounded-xl text-sm font-medium"
+                  style={{ color: "var(--sage-deep)", border: "1px dashed rgba(139,154,125,0.4)", background: "transparent" }}
+                >
+                  跳过，直接开始占卜 →
+                </button>
+              </div>
+            )}
+
+            {/* 验证中 */}
+            {verifyCard && verifyLoading && (
+              <div className="glass rounded-2xl p-10 text-center">
+                <div className="text-4xl mb-3">{verifyCard.imageEmoji}</div>
+                <div className="font-semibold mb-1" style={{ color: "var(--text-warm)" }}>{verifyCard.nameZh}{verifyCard.reversed ? "（逆位）" : ""}</div>
+                <div className="inline-block w-6 h-6 rounded-full border-2 border-t-transparent animate-spin mt-4" style={{ borderColor: "var(--sage)" }} />
+                <p className="text-sm mt-3" style={{ color: "var(--text-muted)" }}>正在比对能量频率...</p>
+              </div>
+            )}
+
+            {/* 验证结果 */}
+            {verifyCard && !verifyLoading && verifyLevel && (
+              <div className="space-y-4">
+                <div className="glass rounded-2xl p-6">
+                  <div className="flex items-center gap-4 mb-4">
+                    <span className="text-4xl">{verifyCard.imageEmoji}</span>
+                    <div>
+                      <div className="font-semibold" style={{ color: "var(--text-warm)" }}>
+                        {verifyCard.nameZh}{verifyCard.reversed ? "（逆位）" : ""}
+                      </div>
+                      <div className={`text-sm font-medium mt-0.5 ${verifyLevel === "high" ? "text-emerald-600" : verifyLevel === "medium" ? "text-amber-600" : "text-rose-500"}`}>
+                        {verifyLevel === "high" ? "✓ 高度吻合" : verifyLevel === "medium" ? "△ 部分对应" : "○ 吻合度偏低"}
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-sm leading-relaxed" style={{ color: "var(--text-warm)" }}>{verifyExplanation}</p>
+                  {verifyLevel === "high" && (
+                    <div className="mt-4 text-xs px-3 py-2 rounded-lg" style={{ background: "rgba(139,154,125,0.12)", color: "var(--sage-deep)" }}>
+                      🎯 频道已校准，这次解读的准确度会相应提升
+                    </div>
+                  )}
+                  {verifyLevel === "low" && (
+                    <div className="mt-4 text-xs px-3 py-2 rounded-lg" style={{ background: "rgba(200,180,160,0.15)", color: "var(--text-muted)" }}>
+                      💡 吻合度偏低不代表占卜无效，可能只是今天的能量状态偏独特，继续进行即可
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setStep("draw")}
+                  className="w-full py-3 rounded-xl text-white font-semibold transition-all hover:opacity-90"
+                  style={{ background: "var(--sage-deep)" }}
+                >
+                  继续正式占卜 →
+                </button>
+              </div>
+            )}
+
+            <div className="text-center mt-6">
+              <button onClick={() => setStep("spread")} className="text-sm" style={{ color: "var(--text-muted)" }}>← 返回选牌阵</button>
             </div>
           </div>
         )}
@@ -327,7 +508,12 @@ export default function ReadingPage() {
             <div className="mb-10">
               <SpreadLayout spreadId={selectedSpread.id} count={drawnCards.length}>
                 {drawnCards.map((card, i) => (
-                  <div key={i} className="glass rounded-xl p-3 text-center">
+                  <button
+                    key={i}
+                    className="glass rounded-xl p-3 text-center transition-all hover:scale-105 hover:shadow-md w-full"
+                    onClick={() => setSelectedCard(card)}
+                    title="点击查看牌面详情"
+                  >
                     <div className="text-xs font-medium tracking-wide mb-1" style={{ color: "var(--sage-deep)" }}>
                       {card.position}
                     </div>
@@ -338,13 +524,14 @@ export default function ReadingPage() {
                     {card.reversed && (
                       <div className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>逆位</div>
                     )}
-                  </div>
+                    <div className="text-xs mt-1" style={{ color: "var(--sage-deep)", opacity: 0.6 }}>点击详情</div>
+                  </button>
                 ))}
               </SpreadLayout>
             </div>
 
             {/* 解读内容 */}
-            <div className="glass rounded-2xl p-8 md:p-10 mb-10">
+            <div className="glass rounded-2xl p-8 md:p-10 mb-6">
               {loading ? (
                 <div className="py-16 text-center">
                   <div className="inline-block w-10 h-10 rounded-full border-2 border-t-transparent animate-spin mb-4" style={{ borderColor: "var(--sage)" }} />
@@ -355,6 +542,18 @@ export default function ReadingPage() {
                 <InterpretationContent text={interpretation} />
               )}
             </div>
+
+            {/* 六维度深度解读 */}
+            {!loading && dimensions.length > 0 && (
+              <SixDimensionPanel dimensions={dimensions} />
+            )}
+
+            {/* 时间参考 */}
+            {!loading && (
+              <TimingReference
+                data={timing ?? calculateTiming(drawnCards)}
+              />
+            )}
 
             {!loading && (
               <div className="flex gap-3 justify-center flex-wrap">
@@ -377,6 +576,9 @@ export default function ReadingPage() {
           </div>
         )}
       </main>
+
+      {/* 牌面详情弹窗 */}
+      <CardDetailModal card={selectedCard} onClose={() => setSelectedCard(null)} />
     </div>
   );
 }

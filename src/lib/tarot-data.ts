@@ -363,4 +363,28 @@ export const SPREADS = [
   { id: "moonCycle", name: "月亮周期", description: "六张牌・深度能量梳理", count: 6, emoji: "🌕", positions: ["当前能量", "隐藏因素", "需要放下", "需要接纳", "下一步行动", "月圆指引"] },
   { id: "decision", name: "决策天平", description: "选项A与选项B的全面对比", count: 6, emoji: "🔮", positions: ["选项A能量", "选项A阻力", "选项A结果", "选项B能量", "选项B阻力", "选项B结果"] },
   { id: "chakra", name: "七脉轮", description: "身体七个能量中心的洞察", count: 7, emoji: "🌈", positions: ["根轮·安全感", "骶轮·创造力", "太阳轮·自信", "心轮·爱", "喉轮·表达", "眉心轮·直觉", "顶轮·灵性"] },
+  { id: "monthlyFlow", name: "流月预测", description: "未来三个月各月能量走势", count: 3, emoji: "📅", positions: ["第一个月能量", "第二个月能量", "第三个月能量"] },
+  { id: "strategy", name: "博弈策略", description: "看清局面・找到突破口", count: 4, emoji: "♟️", positions: ["当前局面", "显性阻碍（规则/权威）", "隐性突破（策略/空间）", "最优行动建议"] },
+  { id: "sageRealm", name: "贤者之境", description: "深层自我探索・复杂困境全貌", count: 5, emoji: "🔯", positions: ["当下真实状态", "深层恐惧/阴影", "隐藏的内在渴望", "宇宙正在考验什么", "灵魂层面的指引"] },
+  { id: "personality", name: "性格画像", description: "读懂一个人的底色与动机", count: 3, emoji: "🪞", positions: ["外在表现（别人眼中）", "内在底色（深层动机）", "阴影面（未被承认的部分）"] },
+];
+
+/** 牌阵选择说明：供用户手动选牌阵时参考 */
+export const SPREAD_GUIDE: { id: string; name: string; emoji: string; scenarios: string }[] = [
+  { id: "single", name: "单牌占卜", emoji: "🃏", scenarios: "今日能量、今天/最近状态、快速洞察、简单是非、冥想后的单一指引" },
+  { id: "yesno", name: "是非指引", emoji: "⚖️", scenarios: "明确的是非题：「可不可以」「会不会」「有没有可能」「行不行」「能否成功」（不是二选一）" },
+  { id: "three", name: "三牌展开", emoji: "🌙", scenarios: "事件时间线（过去-现在-未来）、感情进展梳理、情况-建议-结果、需要故事感叙述" },
+  { id: "newMoon", name: "新月许愿", emoji: "🌑", scenarios: "设定新目标、新阶段开始、想做某件事可不可行、愿望设定与可行性" },
+  { id: "mindBodySoul", name: "身心灵三角", emoji: "🔺", scenarios: "身体状态、情绪困扰、感觉失衡、焦虑失眠、身心脱节、需要身心灵三个层面检视" },
+  { id: "relationship", name: "关系牌阵", emoji: "💕", scenarios: "两人之间的感情、矛盾、吸引力、合作关系、家庭关系（必须有明确的「两个人」）" },
+  { id: "selfGrowth", name: "自我成长", emoji: "🌱", scenarios: "个人卡点、内在阻力、想突破某个模式、自我限制、成长瓶颈" },
+  { id: "career", name: "工作牌阵", emoji: "💼", scenarios: "职业选择、升职、项目方向、跳槽、工作阻碍、事业规划" },
+  { id: "celtic", name: "凯尔特十字", emoji: "✨", scenarios: "复杂纠缠的多层面问题、看不清全貌的大问题、需要层层剖析（不是简单的二选一）" },
+  { id: "moonCycle", name: "月亮周期", emoji: "🌕", scenarios: "情绪周期、能量高低起伏、长期状态梳理、需要六张牌深度能量扫描" },
+  { id: "decision", name: "决策天平", emoji: "🔮", scenarios: "二选一纠结：选A还是选B、去还是不去、留还是走、要不要做、做还是不做" },
+  { id: "chakra", name: "七脉轮", emoji: "🌈", scenarios: "全身七个能量中心扫描、灵性探索、深度身心能量排查" },
+  { id: "monthlyFlow", name: "流月预测", emoji: "📅", scenarios: "预测未来三个月运势走向、每月能量特征、何时有桃花/机遇/变动、月份规划参考" },
+  { id: "strategy", name: "博弈策略", emoji: "♟️", scenarios: "职场请假/晋升/谈判博弈、感情中的行动策略、遇到阻力如何绕过、需要看清「显性规则」和「隐性突破口」" },
+  { id: "sageRealm", name: "贤者之境", emoji: "🔯", scenarios: "复杂纠缠无从下手、需要洞察潜意识阴影、深层自我探索、灵魂层面的重大课题、想一次看清表里两层能量" },
+  { id: "personality", name: "性格画像", emoji: "🪞", scenarios: "读懂某人的性格底色与动机、了解对方真实想法、理解关系中的差异、自我性格剖析" },
 ];

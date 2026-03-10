@@ -41,6 +41,22 @@ const LAYOUT_ROWS: Record<string, (number | null)[][]> = {
     [4, 5],
   ],
   chakra: [[0, 1, 2, 3, 4, 5, 6]],
+  // 流月预测：三个月横排
+  monthlyFlow: [[0, 1, 2]],
+  // 贤者之境：顶部灵魂指引，中层恐惧+渴望，中心当下状态，底部宇宙考验
+  sageRealm: [
+    [null, 4, null],
+    [1,    0,    2],
+    [null, 3, null],
+  ],
+  // 性格画像：三张横排
+  personality: [[0, 1, 2]],
+  // 博弈策略：上方局面居中，中行显性+隐性，下方建议居中
+  strategy: [
+    [null, 0, null],
+    [1,    null,  2],
+    [null, 3, null],
+  ],
 };
 
 function getDefaultRows(count: number): (number | null)[][] {
