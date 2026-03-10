@@ -513,22 +513,27 @@ def research_to_html(text: str) -> str:
                 # DOI field → render as clickable link
                 if icon == "🆔":
                     doi = body_part.strip()
+                    q = urllib.parse.quote(current_title or doi)
+                    scholar_url = f"https://scholar.google.com/scholar?q={q}"
                     if doi and doi != "不详" and re.match(r"10\.\d{4,}", doi):
-                        link_url  = f"https://doi.org/{doi}"
-                        link_text = doi
+                        links_html = (
+                            f'<a href="https://doi.org/{e(doi)}" target="_blank" '
+                            f'style="color:#1a73e8;text-decoration:none">🔍 {e(doi)}</a>'
+                            f'&nbsp;&nbsp;<a href="{e(scholar_url)}" target="_blank" '
+                            f'style="color:#888;font-size:12px;text-decoration:none">Google Scholar ↗</a>'
+                        )
                     else:
-                        # Fallback: Google Scholar search by title
-                        q = urllib.parse.quote(current_title or doi)
-                        link_url  = f"https://scholar.google.com/scholar?q={q}"
-                        link_text = "Google Scholar 搜索"
+                        links_html = (
+                            f'<a href="{e(scholar_url)}" target="_blank" '
+                            f'style="color:#1a73e8;text-decoration:none">🔍 Google Scholar 搜索</a>'
+                        )
                     parts.append(
                         f'<table width="100%" cellpadding="0" cellspacing="0" '
                         f'style="margin:7px 0;border-collapse:collapse"><tr>'
                         f'<td width="88" valign="top" style="color:{color};font-weight:600;'
                         f'font-size:13px;padding-right:8px;white-space:nowrap">{e(key_part)}</td>'
                         f'<td valign="top" style="font-size:13px;line-height:1.7">'
-                        f'<a href="{e(link_url)}" target="_blank" '
-                        f'style="color:#1a73e8;text-decoration:none">🔍 {e(link_text)}</a>'
+                        f'{links_html}'
                         f'</td></tr></table>'
                     )
                     matched = True
