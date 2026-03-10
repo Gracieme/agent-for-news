@@ -118,41 +118,12 @@ BEAUTY_SYSTEM = """你是一位专业的美妆顾问与美容教育助手。
 - 色彩：大地色系、棕调、暖粉、砖红——避免冷粉冷紫"""
 
 
-RESEARCH_SYSTEM = """你是一位专业的应用语言学学术文献助手，服务对象为该领域的博士研究生。
+RESEARCH_RELEVANCE_SYSTEM = """你是一位应用语言学博士研究助手。用户的研究背景：
+【方向一】评估与语言权力：AP Chinese、assessment、epistemic injustice、washback、CDA
+【方向二】课堂互动与中介：CSL、translanguaging、LRE、peer interaction、MICM
+【方向三】教师与制度：DLI、teacher vulnerability、emotional labor、autoethnography
 
-用户研究背景：
-
-【研究方向一：评估与语言权力】
-核心概念：AP Chinese、assessment、epistemic injustice、hermeneutical injustice、
-washback、metalinguistic asymmetry、CDA
-
-【研究方向二：课堂互动与中介】
-核心概念：CSL、peer interaction、translanguaging、LRE、NoM、
-mediational architecture、MICM、novice-high
-
-【研究方向三：教师与制度】
-核心概念：charter school / DLI、teacher vulnerability、decoupling、
-emotional labor、autoethnography、policy implementation
-
-每日任务：推荐3篇真实存在的学术论文，每篇提供：
-
-📌 作者：
-📖 标题：
-📰 期刊：
-📅 年份：（发表年份）
-📊 引用量：（约X次（估计））
-📝 摘要：
-🔗 与本研究的关联性：
-
-在每篇论文前写：━━━━━━━━━━━━━━━━━━━━━━━━
-然后写：📄 论文 N
-然后再写：━━━━━━━━━━━━━━━━━━━━━━━━
-然后是论文各字段。
-
-重要原则：
-- 优先推荐 2020–2024 年发表的最新前沿研究，尽量选近3年内的论文
-- 避免只选大名鼎鼎的经典文献——重点发掘新兴学者、新视角、新方法论的近期成果
-- 只推荐训练数据中真实存在的论文，不要虚构"""
+给你一篇真实论文的标题和摘要，请用2-3句中文说明它与上述研究方向的关联性。只输出关联性说明，不要其他内容。"""
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -209,19 +180,106 @@ def gen_beauty(today: str, weekday: int, day_cn: str) -> str:
     )
 
 
+def _openalex_search(query: str, limit: int = 3) -> list:
+    """Search OpenAlex API (no key required) and return work dicts."""
+    import urllib.request, json as _json
+    url = (
+        f"https://api.openalex.org/works"
+        f"?search={urllib.parse.quote(query)}"
+        f"&filter=publication_year:2019-2025"
+        f"&per_page={limit}&sort=relevance_score:desc"
+        f"&select=title,authorships,publication_year,abstract_inverted_index,cited_by_count,primary_location,doi"
+        f"&mailto=research-emailer@example.com"
+    )
+    req = urllib.request.Request(url, headers={"User-Agent": "research-emailer/1.0"})
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return _json.loads(r.read())["results"]
+
+
+def _reconstruct_abstract(inverted_index: dict) -> str:
+    """Reconstruct abstract text from OpenAlex inverted index format."""
+    if not inverted_index:
+        return ""
+    words = [""] * (max(pos for positions in inverted_index.values() for pos in positions) + 1)
+    for word, positions in inverted_index.items():
+        for pos in positions:
+            words[pos] = word
+    return " ".join(words)
+
+
+def _paper_to_text(paper: dict, n: int, relevance: str) -> str:
+    authors = ", ".join(
+        a["author"]["display_name"]
+        for a in paper.get("authorships", [])[:3]
+        if a.get("author")
+    )
+    if len(paper.get("authorships", [])) > 3:
+        authors += " et al."
+    title    = paper.get("title", "")
+    year     = paper.get("publication_year", "")
+    cites    = paper.get("cited_by_count", 0)
+    venue    = ((paper.get("primary_location") or {}).get("source") or {}).get("display_name", "—")
+    doi      = paper.get("doi", "")
+    abstract = _reconstruct_abstract(paper.get("abstract_inverted_index") or {})
+    abstract_short = (abstract[:400] + "…") if len(abstract) > 400 else abstract or "摘要不可用"
+
+    if doi:
+        link_url  = doi if doi.startswith("http") else f"https://doi.org/{doi}"
+        link_text = doi.replace("https://doi.org/", "")
+    else:
+        q = urllib.parse.quote(title)
+        link_url  = f"https://scholar.google.com/scholar?q={q}"
+        link_text = "Google Scholar"
+
+    return (
+        f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📄 论文 {n}\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📌 作者：{authors}\n"
+        f"📖 标题：{title}\n"
+        f"📰 期刊：{venue}\n"
+        f"📅 年份：{year}\n"
+        f"📊 引用量：{cites} 次\n"
+        f"📝 摘要：{abstract_short}\n"
+        f"🔗 与本研究的关联性：{relevance}\n"
+        f"🆔 DOI：{link_text}|{link_url}\n"
+    )
+
+
 def gen_research(today: str) -> str:
     day_mod = datetime.now().day % 3
-    focuses = [
-        "今天请优先推荐与【评估与语言权力】相关的论文（washback、epistemic injustice、AP Chinese、CDA），搭配1篇其他方向。",
-        "今天请优先推荐与【课堂互动与中介】相关的论文（translanguaging、LRE、peer interaction in CSL、MICM），搭配1篇其他方向。",
-        "今天请优先推荐与【教师与制度】相关的论文（teacher vulnerability、emotional labor、DLI policy、autoethnography），搭配1篇其他方向。",
+    queries = [
+        "epistemic injustice language assessment washback Chinese",
+        "translanguaging peer interaction Chinese as second language classroom",
+        "teacher emotional labor dual language immersion policy autoethnography",
     ]
-    return collect(
-        RESEARCH_SYSTEM,
-        f"今天是{today}，请为我推荐今日3篇学术论文。\n{focuses[day_mod]}\n"
-        "请按照规定格式逐一呈现每篇论文的完整信息。",
-        max_tokens=4000,
-    )
+    query = queries[day_mod]
+    log.info(f"   OpenAlex 搜索: {query}")
+
+    try:
+        papers = _openalex_search(query, limit=3)
+    except Exception as ex:
+        log.warning(f"   OpenAlex 请求失败: {ex}")
+        papers = []
+
+    if not papers:
+        return "（今日无法获取论文数据，请稍后查看）"
+
+    parts = []
+    for i, paper in enumerate(papers, 1):
+        title    = paper.get("title", "")
+        abstract = _reconstruct_abstract(paper.get("abstract_inverted_index") or {})
+        try:
+            relevance = collect(
+                RESEARCH_RELEVANCE_SYSTEM,
+                f"标题：{title}\n摘要：{abstract[:600]}",
+                max_tokens=200,
+            ).strip()
+        except Exception:
+            relevance = "（关联性分析暂不可用）"
+        parts.append(_paper_to_text(paper, i, relevance))
+
+    return "\n".join(parts)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -509,23 +567,19 @@ def research_to_html(text: str) -> str:
                 if icon == "📖":
                     current_title = body_part
 
-                # DOI field → render as clickable link
+                # DOI field → render as clickable link (format: "link_text|link_url")
                 if icon == "🆔":
-                    doi = body_part.strip()
-                    q = urllib.parse.quote(current_title or doi)
-                    scholar_url = f"https://scholar.google.com/scholar?q={q}"
-                    if doi and doi != "不详" and re.match(r"10\.\d{4,}", doi):
-                        links_html = (
-                            f'<a href="https://doi.org/{e(doi)}" target="_blank" '
-                            f'style="color:#1a73e8;text-decoration:none">🔍 {e(doi)}</a>'
-                            f'&nbsp;&nbsp;<a href="{e(scholar_url)}" target="_blank" '
-                            f'style="color:#888;font-size:12px;text-decoration:none">Google Scholar ↗</a>'
-                        )
+                    raw = body_part.strip()
+                    if "|" in raw:
+                        link_text, link_url = raw.split("|", 1)
                     else:
-                        links_html = (
-                            f'<a href="{e(scholar_url)}" target="_blank" '
-                            f'style="color:#1a73e8;text-decoration:none">🔍 Google Scholar 搜索</a>'
-                        )
+                        q = urllib.parse.quote(current_title or raw)
+                        link_text = "Google Scholar 搜索"
+                        link_url  = f"https://scholar.google.com/scholar?q={q}"
+                    links_html = (
+                        f'<a href="{e(link_url)}" target="_blank" '
+                        f'style="color:#1a73e8;text-decoration:none">🔍 {e(link_text)}</a>'
+                    )
                     parts.append(
                         f'<table width="100%" cellpadding="0" cellspacing="0" '
                         f'style="margin:7px 0;border-collapse:collapse"><tr>'
