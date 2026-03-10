@@ -23,11 +23,10 @@ export async function POST(req: NextRequest) {
 请返回JSON格式：
 {
   "spreadId": "推荐的牌阵ID（single/three/relationship/career/celtic之一）",
-  "reason": "推荐原因（1-2句，温暖地说明为什么这个牌阵适合他/她）",
-  "question": "帮提问者优化他们的问题，让它更适合塔罗解读（如果已经很好就原文返回）"
+  "reason": "推荐原因（1-2句，温暖地说明为什么这个牌阵适合他/她）"
 }
 
-只返回JSON，不要其他内容。`;
+只返回JSON，不要其他内容。严禁修改或优化提问者的原始问题。`;
 
     const result = await model.generateContent(prompt);
     const text = result.response.text().trim();
@@ -41,7 +40,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       spreadId: "three",
       reason: "三牌展开适合大多数问题，能清晰呈现过去、现在、未来的能量流动。",
-      question: "请给我关于当前情况的指引"
     });
   }
 }

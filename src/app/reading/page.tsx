@@ -62,7 +62,7 @@ export default function ReadingPage() {
       const spread = ALL_SPREADS.find(s => s.id === data.spreadId) || ALL_SPREADS[1];
       setRecommendedSpread(spread);
       setRecommendReason(data.reason || "");
-      setRefinedQuestion(data.question || situation);
+      setRefinedQuestion(""); // 不修改原始问题
       setStep("spread");
     } catch {
       setStep("spread");
