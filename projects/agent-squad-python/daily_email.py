@@ -84,7 +84,8 @@ A: ...）
 - 对话要有真实感，像真人在说话，不要像课本范文
 - 每期尽量覆盖2-3个不同地区的表达，兼顾多样性
 - 不要过于书面或过时，优先选当代真实在用的表达
-- 10条表达自然融入对话，不生硬"""
+- 10条表达自然融入对话，不生硬
+- 若对话中还有其他地道表达（如 on the fence、under the weather 等）虽未列入本日10条，请用 __双下划线__ 标出，供读者留意（非学习重点，仅作地道表达提示）"""
 
 
 BEAUTY_SYSTEM = """你是一位专业的美妆顾问与美容教育助手。
@@ -233,8 +234,10 @@ def e(s: str) -> str:
 
 
 def md(s: str) -> str:
-    """HTML-escape then convert inline markdown (**bold**, *italic*) to HTML tags."""
+    """HTML-escape then convert inline markdown (**bold**, *italic*, __idiom__) to HTML tags."""
     s = html.escape(str(s))
+    # __地道表达__ → 次级高亮（非本日重点，仅作提示）
+    s = re.sub(r'__(.+?)__', r'<span style="background:#f5f0e6;color:#8b7355;padding:1px 4px;border-radius:3px;font-size:0.98em">\1</span>', s)
     s = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', s)
     s = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<em>\1</em>', s)
     return s
@@ -253,7 +256,9 @@ def english_to_html(text: str) -> str:
 
         # Section header 【...】
         if s.startswith("【") and "】" in s:
-            label = s[1: s.index("】")]
+            close_idx = s.index("】")
+            label = s[1: close_idx]
+            suffix = s[close_idx + 1:].strip()
             color_map = {
                 "今日主题":  ("#1a73e8", "#e8f0fe"),
                 "英文原文":  ("#0d47a1", "#e3f2fd"),
@@ -266,10 +271,11 @@ def english_to_html(text: str) -> str:
                     border_color, bg = bc, bg_
                     break
             current_section = label
+            suffix_html = f'<span style="margin-left:8px;font-weight:400;color:{border_color}">{md(suffix)}</span>' if suffix else ""
             parts.append(
                 f'<div style="background:{bg};border-left:4px solid {border_color};'
                 f'padding:10px 16px;margin:18px 0 10px;border-radius:0 6px 6px 0">'
-                f'<strong style="color:{border_color};font-size:15px">【{e(label)}】</strong></div>'
+                f'<strong style="color:{border_color};font-size:15px">【{e(label)}】</strong>{suffix_html}</div>'
             )
             continue
 
@@ -369,11 +375,14 @@ def beauty_to_html(text: str) -> str:
             continue
 
         if s.startswith("【") and "】" in s:
-            label = s[1: s.index("】")]
+            close_idx = s.index("】")
+            label = s[1: close_idx]
+            suffix = s[close_idx + 1:].strip()
+            suffix_html = f'<span style="margin-left:8px;font-weight:400;color:#c2185b">{md(suffix)}</span>' if suffix else ""
             parts.append(
                 f'<div style="background:#fce4ec;border-left:4px solid #e91e8c;'
                 f'padding:10px 16px;margin:18px 0 10px;border-radius:0 6px 6px 0">'
-                f'<strong style="color:#c2185b;font-size:15px">【{e(label)}】</strong></div>'
+                f'<strong style="color:#c2185b;font-size:15px">【{e(label)}】</strong>{suffix_html}</div>'
             )
             continue
 
