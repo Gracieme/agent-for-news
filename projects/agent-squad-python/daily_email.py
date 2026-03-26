@@ -351,6 +351,146 @@ def gen_research(today: str) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════
+#  NEWS FETCHER
+# ══════════════════════════════════════════════════════════════════
+
+NEWS_REGIONS = {
+    "🇨🇳 中国": [
+        ("人民日报(英文版)", "http://en.people.cn/rss/90000.xml"),
+        ("中国日报",         "https://www.chinadaily.com.cn/rss/china_rss.xml"),
+        ("新华社(英文版)",   "http://www.xinhuanet.com/english/rss/chinalatestnews.xml"),
+        ("CGTN",             "https://www.cgtn.com/subscribe/rss/section/china.xml"),
+        ("环球时报",         "https://www.globaltimes.cn/rss/outbrain.xml"),
+    ],
+    "🇺🇸 美国": [
+        ("NPR",          "https://feeds.npr.org/1001/rss.xml"),
+        ("PBS NewsHour", "https://www.pbs.org/newshour/feeds/rss/headlines"),
+        ("CNN",          "http://rss.cnn.com/rss/edition_us.rss"),
+        ("Reuters",      "https://feeds.reuters.com/reuters/domesticNews"),
+        ("AP News",      "https://rsshub.app/apnews/topics/apf-topnews"),
+    ],
+    "🇳🇿 新西兰": [
+        ("RNZ",       "https://www.rnz.co.nz/rss/news.xml"),
+        ("NZ Herald", "https://www.nzherald.co.nz/arc/outboundfeeds/rss/?outputType=xml"),
+        ("Stuff",     "https://www.stuff.co.nz/rss"),
+        ("1 News",    "https://www.1news.co.nz/rss"),
+    ],
+    "🌍 欧洲": [
+        ("BBC Europe", "http://feeds.bbci.co.uk/news/world/europe/rss.xml"),
+        ("DW",         "https://rss.dw.com/rdf/rss-en-world"),
+        ("Euronews",   "https://www.euronews.com/rss"),
+        ("Reuters",    "https://feeds.reuters.com/reuters/worldNews"),
+    ],
+    "🌏 亚洲": [
+        ("Straits Times", "https://www.straitstimes.com/news/asia/rss.xml"),
+        ("Japan Times",   "https://www.japantimes.co.jp/news/feed/"),
+        ("The Hindu",     "https://www.thehindu.com/news/international/?service=rss"),
+        ("Al Jazeera",    "https://www.aljazeera.com/xml/rss/all.xml"),
+    ],
+    "🌐 其他地区": [
+        ("BBC Africa",   "http://feeds.bbci.co.uk/news/world/africa/rss.xml"),
+        ("BBC Latam",    "http://feeds.bbci.co.uk/news/world/latin_america/rss.xml"),
+        ("BBC Mid East", "http://feeds.bbci.co.uk/news/world/middle_east/rss.xml"),
+        ("Al Jazeera",   "https://www.aljazeera.com/xml/rss/all.xml"),
+    ],
+}
+
+
+def _fetch_rss(url: str, limit: int = 10) -> list:
+    """Fetch RSS feed and return list of {title, link, source} dicts."""
+    try:
+        import feedparser
+        feed = feedparser.parse(url)
+        items = []
+        for entry in feed.entries[:limit]:
+            title = (entry.get("title") or "").strip()
+            link  = (entry.get("link")  or "").strip()
+            if title and link:
+                items.append({"title": title, "link": link})
+        return items
+    except Exception as ex:
+        log.warning(f"   RSS 获取失败 ({url}): {ex}")
+        return []
+
+
+def gen_news(today: str) -> list:
+    """
+    Fetch top-5 news per region via RSS, translate titles to Chinese with Claude,
+    and return a list of region dicts ready for news_to_html().
+    """
+    # Step 1: collect raw items per region (5 per region)
+    region_raw: dict[str, list] = {}
+    for region, feeds in NEWS_REGIONS.items():
+        seen_titles: set = set()
+        items: list = []
+        for src_name, url in feeds:
+            if len(items) >= 5:
+                break
+            for entry in _fetch_rss(url, limit=8):
+                title_lower = entry["title"].lower()[:80]
+                if title_lower not in seen_titles:
+                    seen_titles.add(title_lower)
+                    entry["source"] = src_name
+                    items.append(entry)
+                if len(items) >= 5:
+                    break
+        region_raw[region] = items[:5]
+
+    # Step 2: batch-translate all titles with one Claude call
+    all_items = []
+    for region, items in region_raw.items():
+        for item in items:
+            all_items.append({"region": region, **item})
+
+    if not all_items:
+        return []
+
+    numbered = "\n".join(
+        f"[{i+1}] {it['title']}" for i, it in enumerate(all_items)
+    )
+    prompt = (
+        "下面是今日各地区新闻标题列表，请为每条提供：\n"
+        "① 中文标题（如原标题已是中文则直接保留，否则翻译）\n"
+        "② 一句话中文简介，20字以内，概括新闻要点\n\n"
+        "输出格式严格按照（每条占一行，用|分隔，不要其他内容）：\n"
+        "[序号]|中文标题|简介\n\n"
+        "原始标题：\n" + numbered
+    )
+    try:
+        raw = collect("你是专业新闻翻译和摘要助手。", prompt, max_tokens=1200).strip()
+    except Exception as ex:
+        log.warning(f"   新闻翻译失败: {ex}")
+        raw = ""
+
+    # Parse Claude's output
+    translations: dict[int, tuple[str, str]] = {}
+    for line in raw.splitlines():
+        m = re.match(r"\[(\d+)\]\s*\|([^|]+)\|(.+)", line.strip())
+        if m:
+            idx      = int(m.group(1)) - 1
+            cn_title = m.group(2).strip()
+            summary  = m.group(3).strip()
+            translations[idx] = (cn_title, summary)
+
+    # Step 3: merge translations back
+    for i, item in enumerate(all_items):
+        cn_title, summary = translations.get(i, ("", ""))
+        item["title_cn"] = cn_title or item["title"]
+        item["summary"]  = summary
+
+    # Step 4: re-group by region
+    region_result: dict[str, list] = {r: [] for r in NEWS_REGIONS}
+    for item in all_items:
+        region_result[item["region"]].append(item)
+
+    return [
+        {"region": region, "items": region_result[region]}
+        for region in NEWS_REGIONS
+        if region_result[region]
+    ]
+
+
+# ══════════════════════════════════════════════════════════════════
 #  TEXT → HTML CONVERTERS
 # ══════════════════════════════════════════════════════════════════
 
@@ -695,10 +835,73 @@ def research_to_html(text: str) -> str:
 #  HTML EMAIL TEMPLATE
 # ══════════════════════════════════════════════════════════════════
 
+def news_to_html(region_groups: list) -> str:
+    """Render news region groups as HTML for email and website."""
+    if not region_groups:
+        return '<p style="color:#aaa;text-align:center;padding:20px">今日暂无新闻数据</p>'
+
+    region_colors = {
+        "🇨🇳 中国":   ("#c62828", "#fff5f5", "#ffd9d9"),
+        "🇺🇸 美国":   ("#1565c0", "#f0f4ff", "#d0deff"),
+        "🇳🇿 新西兰": ("#2e7d32", "#f0fff4", "#c8e6c9"),
+        "🌍 欧洲":    ("#6a1b9a", "#faf0ff", "#e1bee7"),
+        "🌏 亚洲":    ("#e65100", "#fff8f0", "#ffe0b2"),
+        "🌐 其他地区":("#00695c", "#f0fafa", "#b2dfdb"),
+    }
+    default_color = ("#455a64", "#f5f5f5", "#cfd8dc")
+
+    parts = []
+    for group in region_groups:
+        region = group["region"]
+        items  = group["items"]
+        if not items:
+            continue
+        hdr_color, bg_color, tag_bg = region_colors.get(region, default_color)
+
+        parts.append(
+            f'<div style="margin-bottom:22px">'
+            f'<div style="background:{hdr_color};color:#fff;font-weight:700;font-size:14px;'
+            f'padding:7px 14px;border-radius:8px 8px 0 0;letter-spacing:0.5px">'
+            f'{html.escape(region)}</div>'
+            f'<div style="background:{bg_color};border:1px solid {tag_bg};border-top:none;'
+            f'border-radius:0 0 8px 8px;padding:4px 0">'
+        )
+        for item in items:
+            en_title = html.escape(item.get("title", ""))
+            cn_title = html.escape(item.get("title_cn", ""))
+            summary  = html.escape(item.get("summary", ""))
+            source   = html.escape(item.get("source", ""))
+            link     = item.get("link", "#")
+
+            parts.append(
+                f'<div style="padding:10px 14px;border-bottom:1px solid {tag_bg}">'
+                # Chinese title (primary, linkable)
+                f'<a href="{link}" target="_blank" rel="noopener" '
+                f'style="display:block;color:{hdr_color};font-weight:700;font-size:14px;'
+                f'text-decoration:none;margin-bottom:3px;line-height:1.4">'
+                f'{cn_title or en_title}</a>'
+                # English title
+                f'<div style="color:#555;font-size:12px;margin-bottom:4px;line-height:1.4">'
+                f'{en_title}</div>'
+                # Summary + source tag
+                f'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+                f'<span style="color:#777;font-size:12px;flex:1">{summary}</span>'
+                f'<span style="background:{tag_bg};color:{hdr_color};font-size:11px;'
+                f'padding:2px 8px;border-radius:10px;white-space:nowrap;font-weight:600">'
+                f'{source}</span>'
+                f'</div>'
+                f'</div>'
+            )
+        parts.append('</div></div>')
+
+    return "\n".join(parts)
+
+
 def build_email_html(
     eng_html: str,
     bty_html: str,
     res_html: str,
+    news_html: str,
     date_str: str,
     day_cn: str,
 ) -> str:
@@ -787,6 +990,25 @@ def build_email_html(
       {res_html}
     </div>
 
+    <!-- ══ DIVIDER ══ -->
+    <div style="height:6px;background:linear-gradient(90deg,#00bcd4,#ff9800,#4caf50)"></div>
+
+    <!-- ══ NEWS SECTION ══ -->
+    <div style="background:#fafafa;border-top:5px solid #ff6f00;padding:28px 32px">
+      <div style="display:flex;align-items:center;margin-bottom:20px">
+        <div style="width:48px;height:48px;background:linear-gradient(135deg,#ff9800,#e65100);
+          border-radius:12px;display:flex;align-items:center;justify-content:center;
+          font-size:22px;flex-shrink:0">📰</div>
+        <div style="margin-left:14px">
+          <h2 style="margin:0;font-size:19px;color:#e65100;font-weight:700">每日全球新闻</h2>
+          <p style="margin:3px 0 0;font-size:12px;color:#888;letter-spacing:0.5px">
+            Daily World News &nbsp;·&nbsp; 中英双语 &nbsp;·&nbsp; 权威媒体
+          </p>
+        </div>
+      </div>
+      {news_html}
+    </div>
+
     <!-- ══ FOOTER ══ -->
     <div style="background:#2d2d2d;border-radius:0 0 14px 14px;
       padding:20px 32px;text-align:center">
@@ -794,7 +1016,7 @@ def build_email_html(
         🤖 &nbsp;Powered by Claude Opus 4.6 &nbsp;·&nbsp; Hits your inbox every morning at 8:00 AM Denver time
       </p>
       <p style="color:#666;margin:0;font-size:11px">
-        American English &nbsp;·&nbsp; 美妆护肤 &nbsp;·&nbsp; 应用语言学科研
+        American English &nbsp;·&nbsp; 美妆护肤 &nbsp;·&nbsp; 应用语言学科研 &nbsp;·&nbsp; 全球新闻
       </p>
     </div>
 
@@ -850,12 +1072,17 @@ def main():
     res_text = gen_research(date_str)
     log.info(f"   完成，{len(res_text)} 字符")
 
-    log.info("🎨 转换为 HTML...")
-    eng_html = english_to_html(eng_text)
-    bty_html = beauty_to_html(bty_text)
-    res_html = research_to_html(res_text)
+    log.info("📰 抓取每日全球新闻...")
+    news_groups = gen_news(date_str)
+    log.info(f"   完成，{sum(len(g['items']) for g in news_groups)} 条新闻")
 
-    full_html = build_email_html(eng_html, bty_html, res_html, date_str, day_cn)
+    log.info("🎨 转换为 HTML...")
+    eng_html  = english_to_html(eng_text)
+    bty_html  = beauty_to_html(bty_text)
+    res_html  = research_to_html(res_text)
+    news_html = news_to_html(news_groups)
+
+    full_html = build_email_html(eng_html, bty_html, res_html, news_html, date_str, day_cn)
 
     subject = f"✨ 每日学习推送 · {date_str} {day_cn}"
 
@@ -865,7 +1092,7 @@ def main():
 
     log.info("🏡 更新格雷西学习小屋网站...")
     date_key = now.strftime("%Y-%m-%d")
-    save_entry(date_key, date_str, day_cn, eng_html, bty_html, res_html)
+    save_entry(date_key, date_str, day_cn, eng_html, bty_html, res_html, news_html)
     site_path, count = rebuild_site()
     log.info(f"   网站已更新 ({count} 天记录) → {site_path}")
 

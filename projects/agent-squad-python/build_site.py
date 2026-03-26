@@ -17,7 +17,8 @@ DATA_DIR    = WEBSITE_DIR / "data"
 # ══════════════════════════════════════════════════════════════════
 
 def save_entry(date_key: str, date_cn: str, day_cn: str,
-               english_html: str, beauty_html: str, research_html: str):
+               english_html: str, beauty_html: str, research_html: str,
+               news_html: str = ""):
     """Save one day's rendered HTML sections as a JSON file."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     entry = {
@@ -27,6 +28,7 @@ def save_entry(date_key: str, date_cn: str, day_cn: str,
         "english":  english_html,
         "beauty":   beauty_html,
         "research": research_html,
+        "news":     news_html,
     }
     out = DATA_DIR / f"{date_key}.json"
     with open(out, "w", encoding="utf-8") as f:
@@ -191,6 +193,10 @@ SITE_TEMPLATE = """<!DOCTYPE html>
       border-color: var(--teal); background: #e0f7fa; color: var(--teal);
       box-shadow: 0 2px 10px rgba(0,131,143,.18);
     }
+    .tab-btn[data-tab="news"].active {
+      border-color: #e65100; background: #fff3e0; color: #e65100;
+      box-shadow: 0 2px 10px rgba(230,81,0,.18);
+    }
 
     /* ── Content panel ── */
     .content-panel {
@@ -241,6 +247,7 @@ SITE_TEMPLATE = """<!DOCTYPE html>
       <button class="tab-btn active" data-tab="english">📚 英语表达</button>
       <button class="tab-btn"        data-tab="beauty">💄 美妆</button>
       <button class="tab-btn"        data-tab="research">🔬 科研文献</button>
+      <button class="tab-btn"        data-tab="news">📰 全球新闻</button>
     </div>
     <div class="content-panel" id="content-panel">
       <div class="center-msg">
@@ -282,6 +289,7 @@ function renderSidebar() {
         ${e.english  ? '<span class="dot">📚</span>' : ''}
         ${e.beauty   ? '<span class="dot">💄</span>' : ''}
         ${e.research ? '<span class="dot">🔬</span>' : ''}
+        ${e.news     ? '<span class="dot">📰</span>' : ''}
       </div>
     </div>
   `).join('');
