@@ -355,43 +355,45 @@ def gen_research(today: str) -> str:
 # ══════════════════════════════════════════════════════════════════
 
 NEWS_REGIONS = {
-    "🇨🇳 中国": [
-        ("人民日报(英文版)", "http://en.people.cn/rss/90000.xml"),
-        ("中国日报",         "https://www.chinadaily.com.cn/rss/china_rss.xml"),
-        ("新华社(英文版)",   "http://www.xinhuanet.com/english/rss/chinalatestnews.xml"),
-        ("CGTN",             "https://www.cgtn.com/subscribe/rss/section/china.xml"),
-        ("环球时报",         "https://www.globaltimes.cn/rss/outbrain.xml"),
+    # 大中华区：兼收官方、独立港媒、台湾、BBC、RFA，呈现多元视角
+    "🇨🇳 大中华视角": [
+        ("南华早报(独立港媒)", "https://www.scmp.com/rss/91/feed"),
+        ("台北时报(台湾)",     "https://www.taipeitimes.com/xml/index.rss"),
+        ("BBC中国报道",        "http://feeds.bbci.co.uk/news/world/asia/china/rss.xml"),
+        ("中国日报(官方)",     "https://www.chinadaily.com.cn/rss/china_rss.xml"),
+        ("自由亚洲电台",       "https://www.rfa.org/english/news/china/rss2.xml"),
     ],
-    "🇺🇸 美国": [
-        ("NPR",          "https://feeds.npr.org/1001/rss.xml"),
-        ("PBS NewsHour", "https://www.pbs.org/newshour/feeds/rss/headlines"),
-        ("CNN",          "http://rss.cnn.com/rss/edition_us.rss"),
-        ("Reuters",      "https://feeds.reuters.com/reuters/domesticNews"),
-        ("AP News",      "https://rsshub.app/apnews/topics/apf-topnews"),
+    # 北美：左中右立场兼顾，加入外交政策专业媒体
+    "🇺🇸 北美视角": [
+        ("NPR(公共广播,中偏左)",    "https://feeds.npr.org/1001/rss.xml"),
+        ("AP通讯社(中立)",          "https://rsshub.app/apnews/topics/apf-topnews"),
+        ("华尔街日报(中右)",        "https://feeds.a.dj.com/rss/RSSWorldNews.xml"),
+        ("The Atlantic(中偏左)",    "https://feeds.feedburner.com/TheAtlantic"),
+        ("外交政策(外交专业)",      "https://foreignpolicy.com/feed/"),
     ],
-    "🇳🇿 新西兰": [
-        ("RNZ",       "https://www.rnz.co.nz/rss/news.xml"),
-        ("NZ Herald", "https://www.nzherald.co.nz/arc/outboundfeeds/rss/?outputType=xml"),
-        ("Stuff",     "https://www.stuff.co.nz/rss"),
-        ("1 News",    "https://www.1news.co.nz/rss"),
+    # 欧洲：英/德/法/泛欧，立场各异
+    "🌍 欧洲视角": [
+        ("卫报(英国,中左)",   "https://www.theguardian.com/world/rss"),
+        ("DW(德国,中立)",     "https://rss.dw.com/rdf/rss-en-world"),
+        ("法国24(法国)",      "https://www.france24.com/en/rss"),
+        ("欧洲新闻台(泛欧)",  "https://www.euronews.com/rss"),
+        ("BBC世界",           "http://feeds.bbci.co.uk/news/world/rss.xml"),
     ],
-    "🌍 欧洲": [
-        ("BBC Europe", "http://feeds.bbci.co.uk/news/world/europe/rss.xml"),
-        ("DW",         "https://rss.dw.com/rdf/rss-en-world"),
-        ("Euronews",   "https://www.euronews.com/rss"),
-        ("Reuters",    "https://feeds.reuters.com/reuters/worldNews"),
+    # 亚太：新加坡/日/澳/新西兰/印度，地区多元
+    "🌏 亚太视角": [
+        ("海峡时报(新加坡)",  "https://www.straitstimes.com/news/asia/rss.xml"),
+        ("日本时报",          "https://www.japantimes.co.jp/news/feed/"),
+        ("澳洲ABC新闻",       "https://www.abc.net.au/news/feed/51120/rss.xml"),
+        ("RNZ(新西兰)",       "https://www.rnz.co.nz/rss/news.xml"),
+        ("印度教徒报",        "https://www.thehindu.com/news/international/?service=rss"),
     ],
-    "🌏 亚洲": [
-        ("Straits Times", "https://www.straitstimes.com/news/asia/rss.xml"),
-        ("Japan Times",   "https://www.japantimes.co.jp/news/feed/"),
-        ("The Hindu",     "https://www.thehindu.com/news/international/?service=rss"),
-        ("Al Jazeera",    "https://www.aljazeera.com/xml/rss/all.xml"),
-    ],
-    "🌐 其他地区": [
-        ("BBC Africa",   "http://feeds.bbci.co.uk/news/world/africa/rss.xml"),
-        ("BBC Latam",    "http://feeds.bbci.co.uk/news/world/latin_america/rss.xml"),
-        ("BBC Mid East", "http://feeds.bbci.co.uk/news/world/middle_east/rss.xml"),
-        ("Al Jazeera",   "https://www.aljazeera.com/xml/rss/all.xml"),
+    # 中东/非洲/全球南方：代表性强的独立声音
+    "🌐 中东·非洲·全球南方": [
+        ("半岛电视台(卡塔尔)", "https://www.aljazeera.com/xml/rss/all.xml"),
+        ("BBC非洲",            "http://feeds.bbci.co.uk/news/world/africa/rss.xml"),
+        ("BBC中东",            "http://feeds.bbci.co.uk/news/world/middle_east/rss.xml"),
+        ("路透社世界",         "https://feeds.reuters.com/reuters/worldNews"),
+        ("BBC拉丁美洲",        "http://feeds.bbci.co.uk/news/world/latin_america/rss.xml"),
     ],
 }
 
@@ -449,9 +451,12 @@ def gen_news(today: str) -> list:
         f"[{i+1}] {it['title']}" for i, it in enumerate(all_items)
     )
     prompt = (
-        "下面是今日各地区新闻标题列表，请为每条提供：\n"
+        "下面是今日各媒体新闻标题列表，请为每条提供：\n"
         "① 中文标题（如原标题已是中文则直接保留，否则翻译）\n"
-        "② 一句话中文简介，20字以内，概括新闻要点\n\n"
+        "② 一句话中文简介，25字以内，概括新闻要点；\n"
+        "   若能判断该媒体立场（官方/独立/左/右/中立），\n"
+        "   可在简介末尾用括号注明，如（官方视角）（西方主流）（批评性报道）等，\n"
+        "   无法判断则不加\n\n"
         "输出格式严格按照（每条占一行，用|分隔，不要其他内容）：\n"
         "[序号]|中文标题|简介\n\n"
         "原始标题：\n" + numbered
