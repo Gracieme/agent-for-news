@@ -153,18 +153,58 @@ def collect(system: str, user_prompt: str, max_tokens: int = 3500, **kwargs) -> 
 
 def gen_english(today: str, weekday: int) -> str:
     topics = [
-        "职场与成功（career, ambition, perseverance）",
-        "人生哲理与智慧（life wisdom, choices, consequences）",
-        "人际关系与友谊（friendship, trust, communication）",
-        "时间与金钱（time, money, priorities）",
-        "自然与环境（nature, seasons, environment）",
-        "挑战与逆境（adversity, resilience, change）",
-        "知识与学习（knowledge, curiosity, growth）",
+        # 职场 & 职业发展
+        "职场沟通与汇报（meetings, updates, feedback loops）",
+        "求职与面试（job hunting, interviews, networking）",
+        "升职与谈薪（promotion, salary negotiation, self-advocacy）",
+        "远程办公与协作（remote work, async communication, Slack culture）",
+        "职场八卦与办公室政治（office drama, gossip, workplace dynamics）",
+        # 人际关系 & 社交
+        "友谊与闺蜜（friendship, bestie, hanging out）",
+        "约会与恋爱（dating, relationships, situationships）",
+        "分手与疗愈（breakups, moving on, self-care）",
+        "家庭与代际（family dynamics, generational clash, holidays）",
+        "社交媒体与网络文化（social media slang, viral moments, online drama）",
+        # 日常生活 & 消费
+        "购物与砍价（shopping, deals, buyer's remorse）",
+        "餐厅点餐与美食（ordering food, foodie culture, tipping）",
+        "出行与旅行（travel, road trips, tourist vs local）",
+        "租房与买房（housing market, landlords, roommates）",
+        "理财与省钱（budgeting, frugal hacks, financial anxiety）",
+        # 情绪 & 心理健康
+        "压力与焦虑（stress, burnout, anxiety spirals）",
+        "自我提升与习惯养成（self-improvement, routines, accountability）",
+        "边界感与说不（setting boundaries, saying no, people-pleasing）",
+        "拖延与自律（procrastination, ADHD brain, getting things done）",
+        "正念与慢生活（mindfulness, slowing down, digital detox）",
+        # 流行文化 & 娱乐
+        "追剧与电影（binge-watching, plot twists, fandoms）",
+        "音乐与演唱会（concerts, playlists, music taste）",
+        "体育与球赛（sports culture, game day, trash talk）",
+        "健身与运动（gym talk, workout slang, fitness culture）",
+        "游戏与科技（gaming slang, tech talk, app culture）",
+        # 校园 & 学习
+        "大学校园生活（campus culture, college slang, dorm life）",
+        "考试与截止日期（exams, deadlines, academic pressure）",
+        "留学与文化冲击（study abroad, culture shock, homesickness）",
+        # 社会议题 & 时事
+        "环保与可持续（sustainability, climate anxiety, green living）",
+        "多元文化与包容（diversity, code-switching, microaggressions）",
+        "Gen Z 与千禧代代沟（generational differences, OK boomer, adulting）",
+        "网络梗与表情包文化（meme culture, internet humor, viral slang）",
+        # 节日 & 季节
+        "节日聚会与礼物（holiday parties, gift-giving, awkward gatherings）",
+        "夏日与户外（summer vibes, BBQ, outdoor activities）",
+        "冬天与室内（cozy season, winter blues, hot drinks）",
+        "新年计划与目标（New Year resolutions, fresh starts, goal-setting）",
     ]
+    now = datetime.now()
+    day_of_year = now.timetuple().tm_yday
+    topic = topics[day_of_year % len(topics)]
     return collect(
         ENGLISH_SYSTEM,
-        f"今天是{today}。请围绕主题「{topics[weekday]}」，"
-        "为我提供今日的10条美式英语地道表达学习内容，优先选美国人日常真实在用的口语和俚语，"
+        f"今天是{today}。请围绕主题「{topic}」，"
+        "为我提供今日的10条地道英语表达学习内容，优先选真实日常在用的口语、俚语和惯用语，"
         "按照规定格式输出完整内容。",
         max_tokens=2800,
     )
@@ -181,14 +221,14 @@ def gen_beauty(today: str, weekday: int, day_cn: str) -> str:
     )
 
 
-def _openalex_search(query: str, limit: int = 3) -> list:
+def _openalex_search(query: str, limit: int = 3, page: int = 1) -> list:
     """Search OpenAlex API (no key required) and return work dicts."""
     import urllib.request, json as _json
     url = (
         f"https://api.openalex.org/works"
         f"?search={urllib.parse.quote(query)}"
         f"&filter=publication_year:2019-2025"
-        f"&per_page={limit}&sort=relevance_score:desc"
+        f"&per_page={limit}&page={page}&sort=relevance_score:desc"
         f"&select=title,authorships,publication_year,abstract_inverted_index,cited_by_count,primary_location,doi"
         f"&mailto=research-emailer@example.com"
     )
@@ -248,17 +288,44 @@ def _paper_to_text(paper: dict, n: int, relevance: str) -> str:
 
 
 def gen_research(today: str) -> str:
-    day_mod = datetime.now().day % 3
     queries = [
+        # 语言评估 & 考试效度
+        "language assessment validity washback Chinese EFL",
+        "high-stakes testing fairness equity language proficiency",
+        "CET college English test China validity construct",
+        "language testing bias standard exam score interpretation",
+        # 批判性思维
+        "critical thinking EFL Chinese university students",
         "epistemic injustice language assessment washback Chinese",
+        "critical literacy academic writing second language",
+        "argument writing L2 English reasoning skills",
+        # 课堂互动 & 身份
         "translanguaging peer interaction Chinese as second language classroom",
+        "identity negotiation multilingual classroom discourse",
+        "classroom interaction talk participation second language",
+        "language socialization heritage learners community",
+        # 教师情感 & 政策
         "teacher emotional labor dual language immersion policy autoethnography",
+        "language policy bilingual education teacher beliefs",
+        "teacher identity professional development language classroom",
+        "emotion regulation teacher burnout language instruction",
+        # 写作 & 反馈
+        "written corrective feedback L2 writing revision",
+        "peer feedback academic writing EFL Chinese students",
+        "automated essay scoring NLP language learning",
+        "genre writing instruction English for academic purposes",
     ]
-    query = queries[day_mod]
-    log.info(f"   OpenAlex 搜索: {query}")
+    now = datetime.now()
+    # 用年积日而不是月内日期，保证整年内不重复
+    day_of_year = now.timetuple().tm_yday
+    query_idx = day_of_year % len(queries)
+    query = queries[query_idx]
+    # 每轮完整循环后翻到下一页，避免同一查询反复返回相同结果
+    page = (day_of_year // len(queries)) + 1
+    log.info(f"   OpenAlex 搜索: {query} (第 {page} 页)")
 
     try:
-        papers = _openalex_search(query, limit=3)
+        papers = _openalex_search(query, limit=3, page=page)
     except Exception as ex:
         log.warning(f"   OpenAlex 请求失败: {ex}")
         papers = []
