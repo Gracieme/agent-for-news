@@ -379,13 +379,21 @@ NEWS_REGIONS = {
         ("欧洲新闻台(泛欧)",  "https://www.euronews.com/rss"),
         ("BBC世界",           "http://feeds.bbci.co.uk/news/world/rss.xml"),
     ],
-    # 亚太：新加坡/日/澳/新西兰/印度，地区多元
+    # 亚太：新加坡/日/澳/印度，地区多元
     "🌏 亚太视角": [
         ("海峡时报(新加坡)",  "https://www.straitstimes.com/news/asia/rss.xml"),
         ("日本时报",          "https://www.japantimes.co.jp/news/feed/"),
         ("澳洲ABC新闻",       "https://www.abc.net.au/news/feed/51120/rss.xml"),
-        ("RNZ(新西兰)",       "https://www.rnz.co.nz/rss/news.xml"),
         ("印度教徒报",        "https://www.thehindu.com/news/international/?service=rss"),
+        ("菲律宾每日问询者",  "https://newsinfo.inquirer.net/feed"),
+    ],
+    # 新西兰：公共广播/主流报纸/独立媒体，全面呈现本地视角
+    "🇳🇿 新西兰视角": [
+        ("RNZ(新西兰国家广播)", "https://www.rnz.co.nz/rss/news.xml"),
+        ("新西兰先驱报",        "https://www.nzherald.co.nz/arcio/rss/"),
+        ("Stuff新闻",           "https://www.stuff.co.nz/rss"),
+        ("The Spinoff(独立媒体)","https://thespinoff.co.nz/feed"),
+        ("Newsroom(深度报道)",  "https://www.newsroom.co.nz/feed"),
     ],
     # 中东/非洲/全球南方：代表性强的独立声音
     "🌐 中东·非洲·全球南方": [
@@ -420,7 +428,7 @@ def gen_news(today: str) -> list:
     Fetch top-5 news per region via RSS, translate titles to Chinese with Claude,
     and return a list of region dicts ready for news_to_html().
     """
-    # Step 1: collect raw items per region (5 per region)
+    # Step 1: collect raw items per region (5 per region, 1 per source to ensure diversity)
     region_raw: dict[str, list] = {}
     for region, feeds in NEWS_REGIONS.items():
         seen_titles: set = set()
@@ -434,8 +442,7 @@ def gen_news(today: str) -> list:
                     seen_titles.add(title_lower)
                     entry["source"] = src_name
                     items.append(entry)
-                if len(items) >= 5:
-                    break
+                    break  # one item per source to ensure all sources are represented
         region_raw[region] = items[:5]
 
     # Step 2: batch-translate all titles with one Claude call
