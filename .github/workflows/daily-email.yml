@@ -4,7 +4,7 @@ name: Daily Email + Update Site
 
 on:
   schedule:
-    - cron: '0 15 * * *'   # 冬季 MST  (夏令时 MDT 改为 '0 14 * * *')
+    - cron: '0 14 * * *'   # 夏令时 MDT（UTC-6）早 8:00；冬季 MST 改为 '0 15 * * *'
   workflow_dispatch:         # 允许手动触发
 
 permissions:
