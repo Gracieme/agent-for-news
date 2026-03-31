@@ -7,6 +7,7 @@ daily_email.py — 每日学习内容 HTML 邮件发送器
 import os
 import re
 import html
+import time
 import logging
 import urllib.parse
 from pathlib import Path
@@ -138,17 +139,26 @@ WEEKDAY_CN = {
 
 def collect(system: str, user_prompt: str, max_tokens: int = 3500, **kwargs) -> str:
     """Call Claude API and return full streamed text."""
-    parts = []
-    with client.messages.stream(
-        model="claude-opus-4-6",
-        max_tokens=max_tokens,
-        system=system,
-        messages=[{"role": "user", "content": user_prompt}],
-        **kwargs,
-    ) as stream:
-        for chunk in stream.text_stream:
-            parts.append(chunk)
-    return "".join(parts)
+    for attempt in range(3):
+        try:
+            parts = []
+            with client.messages.stream(
+                model="claude-opus-4-6",
+                max_tokens=max_tokens,
+                system=system,
+                messages=[{"role": "user", "content": user_prompt}],
+                **kwargs,
+            ) as stream:
+                for chunk in stream.text_stream:
+                    parts.append(chunk)
+            return "".join(parts)
+        except anthropic.APIStatusError as e:
+            if e.status_code == 500 and attempt < 2:
+                wait = 10 * (attempt + 1)
+                log.warning("Anthropic 500 error, retrying in %ds (attempt %d/3)…", wait, attempt + 1)
+                time.sleep(wait)
+            else:
+                raise
 
 
 def gen_english(today: str, weekday: int) -> str:
