@@ -153,9 +153,9 @@ def collect(system: str, user_prompt: str, max_tokens: int = 3500, **kwargs) -> 
                     parts.append(chunk)
             return "".join(parts)
         except anthropic.APIStatusError as e:
-            if e.status_code == 500 and attempt < 2:
-                wait = 10 * (attempt + 1)
-                log.warning("Anthropic 500 error, retrying in %ds (attempt %d/3)…", wait, attempt + 1)
+            if e.status_code in (500, 529) and attempt < 2:
+                wait = 30 * (attempt + 1)
+                log.warning("Anthropic %d error, retrying in %ds (attempt %d/3)…", e.status_code, wait, attempt + 1)
                 time.sleep(wait)
             else:
                 raise
