@@ -7,11 +7,12 @@ daily_email.py — 每日学习内容 HTML 邮件发送器
 import os
 import re
 import html
+import json
 import time
 import logging
 import urllib.parse
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import sendgrid
 from sendgrid.helpers.mail import Mail
@@ -95,29 +96,28 @@ BEAUTY_SYSTEM = """你是一位专业的美妆顾问与美容教育助手。
 用户档案：
 - 肤质：棱橄榄皮（角质层偏厚、皮肤偏黄偏暗、毛孔偏大、出油适中）
 - 脸型：圆脸（颧骨较宽、需视觉拉长收窄）
+- 预算：平价与中高端均可，优先推荐性价比高的选择
 
-七日主题轮换：
-周一：底妆技巧 | 周二：眼妆教程 | 周三：修容高光
-周四：唇妆色号 | 周五：护肤成分解析 | 周六：完整妆容教程 | 周日：护肤小贴士
-
-输出格式：
+输出格式（必须严格遵守，每个区块都要输出）：
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 【今日主题】（主题名称）
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-（正文：分步骤/要点展示，具体可操作）
+（正文：分步骤/要点展示，具体可操作，300字以上）
 
 💡 针对你的肤质/脸型：
-（专门针对棱橄榄皮+圆脸的个性化建议）
+（专门针对棱橄榄皮+圆脸的个性化建议，至少3条）
 
-🎨 产品/色号推荐：
-（若适用，给出具体推荐及理由）
+🎨 今日品牌与产品推荐：
+（必须推荐3-5款具体产品，格式：品牌名+产品名+色号（如有）+推荐理由+参考价位。
+ 兼顾：①国际大牌，②平价替代，③国货品牌（如花西子、完美日记、珂拉琪、INTO YOU、colorkey等））
 
 注意事项：
 - 圆脸重点：收窄横向视觉、视觉拉长脸型
 - 棱橄榄皮底妆：提亮暗沉、控油遮孔
-- 色彩：大地色系、棕调、暖粉、砖红——避免冷粉冷紫"""
+- 色彩：大地色系、棕调、暖粉、砖红——避免冷粉冷紫
+- 品牌推荐要具体到产品线和色号，不能只说品牌名"""
 
 
 RESEARCH_RELEVANCE_SYSTEM = """你是一位应用语言学博士研究助手。用户的研究背景：
@@ -221,13 +221,65 @@ def gen_english(today: str, weekday: int) -> str:
 
 
 def gen_beauty(today: str, weekday: int, day_cn: str) -> str:
-    themes = ["底妆技巧","眼妆教程","修容高光","唇妆色号",
-              "护肤成分解析","完整妆容教程","护肤小贴士"]
+    # 40个细化子主题，按 day_of_year 循环，约40天不重复
+    subtopics = [
+        # 底妆技巧 × 6
+        "底妆技巧·散粉与定妆喷雾：如何让妆容持久不脱妆",
+        "底妆技巧·粉底液选色与肤色匹配（橄榄皮避坑指南）",
+        "底妆技巧·遮瑕全攻略（黑眼圈、色斑、毛孔、痘印）",
+        "底妆技巧·隔离霜与妆前乳的选择与叠涂技巧",
+        "底妆技巧·气垫 vs 粉底液 vs BB霜，适合橄榄皮的选择",
+        "底妆技巧·持妆补妆：出油后如何快速救场",
+        # 眼妆教程 × 6
+        "眼妆教程·单眼皮与内双的放大眼法（不用双眼皮贴）",
+        "眼妆教程·眼线与眼尾技巧（下垂眼、圆眼的不同画法）",
+        "眼妆教程·大地色眼影配色与晕染手法",
+        "眼妆教程·睫毛打造（睫毛膏卷翘持久 + 假睫毛选择）",
+        "眼妆教程·眉毛修型与填色（圆脸适合的眉形）",
+        "眼妆教程·卧蚕与下眼妆：提亮眼神的细节技巧",
+        # 修容高光 × 5
+        "修容高光·圆脸专属立体感打造（收窄颧骨+拉长脸型）",
+        "修容高光·高光提亮打法（鼻梁、眉弓、颧骨）",
+        "修容高光·修容粉 vs 修容膏：适合出油肌的选择",
+        "修容高光·自然日常修容：通透感而非强阴影",
+        "修容高光·小脸效果完整修容教程（圆脸适用）",
+        # 唇妆色号 × 6
+        "唇妆色号·橄榄皮显白砖红系口红推荐与搭配",
+        "唇妆色号·橄榄皮必备棕调豆沙色：色号精选",
+        "唇妆色号·口红质地深度对比（哑光/水光/丝绒/镜面）",
+        "唇妆色号·唇线笔技巧：让嘴唇更立体饱满",
+        "唇妆色号·唇部护理与打底：脱皮干纹急救方案",
+        "唇妆色号·韩系渐变唇与日系咬唇妆实操教程",
+        # 护肤成分解析 × 6
+        "护肤成分解析·烟酰胺：橄榄皮美白提亮的核心成分",
+        "护肤成分解析·水杨酸 BHA：控油收毛孔的正确用法",
+        "护肤成分解析·视黄醇/A醇：抗老淡纹的使用攻略",
+        "护肤成分解析·玻尿酸与保湿锁水成分全解析",
+        "护肤成分解析·防晒成分（物理 vs 化学）及选购指南",
+        "护肤成分解析·积雪草与神经酰胺：敏感肌屏障修护",
+        # 完整妆容教程 × 5
+        "完整妆容教程·清透日常通勤妆（15分钟快速上班妆）",
+        "完整妆容教程·约会精致感小女人妆（橄榄皮适用）",
+        "完整妆容教程·派对浓郁夜妆（高显白度色彩方案）",
+        "完整妆容教程·韩系奶油肌妆容（橄榄皮如何打造）",
+        "完整妆容教程·极简素颜感妆：三分钟高级感",
+        # 护肤小贴士 × 6
+        "护肤小贴士·早晚护肤步骤详解（橄榄皮专属顺序）",
+        "护肤小贴士·卸妆与深层清洁：大毛孔的正确清洁法",
+        "护肤小贴士·面膜使用指南（频次与类型搭配）",
+        "护肤小贴士·换季期肌肤调整：油皮秋冬保湿策略",
+        "护肤小贴士·眼霜与颈霜：什么时候开始用、怎么用",
+        "护肤小贴士·生活习惯对肌肤的影响（睡眠、饮食、运动）",
+    ]
+    now = datetime.now()
+    day_of_year = now.timetuple().tm_yday
+    subtopic = subtopics[day_of_year % len(subtopics)]
     return collect(
         BEAUTY_SYSTEM,
-        f"今天是{today}（{day_cn}）。请围绕今日主题「{themes[weekday]}」，"
-        "为我提供针对棱橄榄皮+圆脸的个性化美妆内容推送。",
-        max_tokens=1800,
+        f"今天是{today}（{day_cn}）。请围绕今日细化主题「{subtopic}」，"
+        "为我提供针对棱橄榄皮+圆脸的个性化美妆内容推送。"
+        "记住：必须在【今日品牌与产品推荐】区块列出3-5款具体产品，包含品牌、产品名、色号和参考价位。",
+        max_tokens=2200,
     )
 
 
@@ -372,6 +424,8 @@ NEWS_REGIONS = {
         ("BBC中国报道",        "http://feeds.bbci.co.uk/news/world/asia/china/rss.xml"),
         ("中国日报(官方)",     "https://www.chinadaily.com.cn/rss/china_rss.xml"),
         ("自由亚洲电台",       "https://www.rfa.org/english/news/china/rss2.xml"),
+        ("美联社亚洲",         "https://rsshub.app/apnews/topics/apf-asiapacific"),
+        ("经济学人",           "https://www.economist.com/china/rss.xml"),
     ],
     # 北美：左中右立场兼顾，加入外交政策专业媒体
     "🇺🇸 北美视角": [
@@ -380,6 +434,8 @@ NEWS_REGIONS = {
         ("华尔街日报(中右)",        "https://feeds.a.dj.com/rss/RSSWorldNews.xml"),
         ("The Atlantic(中偏左)",    "https://feeds.feedburner.com/TheAtlantic"),
         ("外交政策(外交专业)",      "https://foreignpolicy.com/feed/"),
+        ("Axios(简报风)",           "https://api.axios.com/feed/"),
+        ("Politico",               "https://www.politico.com/rss/politics08.xml"),
     ],
     # 欧洲：英/德/法/泛欧，立场各异
     "🌍 欧洲视角": [
@@ -388,6 +444,8 @@ NEWS_REGIONS = {
         ("法国24(法国)",      "https://www.france24.com/en/rss"),
         ("欧洲新闻台(泛欧)",  "https://www.euronews.com/rss"),
         ("BBC世界",           "http://feeds.bbci.co.uk/news/world/rss.xml"),
+        ("爱尔兰时报",        "https://www.irishtimes.com/cmlink/the-irish-times-world-news-1.1319192"),
+        ("西班牙El País",     "https://feeds.elpais.com/mrss-s/pages/ep/site/english.elpais.com/portada"),
     ],
     # 亚太：新加坡/日/澳/印度，地区多元
     "🌏 亚太视角": [
@@ -396,6 +454,8 @@ NEWS_REGIONS = {
         ("澳洲ABC新闻",       "https://www.abc.net.au/news/feed/51120/rss.xml"),
         ("印度教徒报",        "https://www.thehindu.com/news/international/?service=rss"),
         ("菲律宾每日问询者",  "https://newsinfo.inquirer.net/feed"),
+        ("韩国中央日报",      "https://koreajoongangdaily.joins.com/rss/feeds"),
+        ("澳洲卫报",          "https://www.theguardian.com/australia-news/rss"),
     ],
     # 新西兰：公共广播/主流报纸/独立媒体，全面呈现本地视角
     "🇳🇿 新西兰视角": [
@@ -412,8 +472,45 @@ NEWS_REGIONS = {
         ("BBC中东",            "http://feeds.bbci.co.uk/news/world/middle_east/rss.xml"),
         ("路透社世界",         "https://feeds.reuters.com/reuters/worldNews"),
         ("BBC拉丁美洲",        "http://feeds.bbci.co.uk/news/world/latin_america/rss.xml"),
+        ("以色列国土报",       "https://www.haaretz.com/cmlink/1.4564"),
+        ("土耳其每日新闻",     "https://www.hurriyetdailynews.com/rss"),
     ],
 }
+
+# ══════════════════════════════════════════════════════════════════
+#  NEWS CROSS-DAY DEDUPLICATION
+# ══════════════════════════════════════════════════════════════════
+
+_NEWS_SEEN_FILE = Path(__file__).parent / "seen_news.json"
+_NEWS_DEDUP_DAYS = 7  # 跳过最近7天出现过的文章
+
+
+def _load_seen_news() -> dict:
+    """Load seen news URLs with their first-seen date."""
+    if _NEWS_SEEN_FILE.exists():
+        try:
+            with open(_NEWS_SEEN_FILE, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def _save_seen_news(seen: dict) -> None:
+    """Persist seen news URLs, pruning entries older than DEDUP_DAYS."""
+    cutoff = (datetime.now() - timedelta(days=_NEWS_DEDUP_DAYS)).strftime("%Y-%m-%d")
+    pruned = {url: date for url, date in seen.items() if date >= cutoff}
+    try:
+        with open(_NEWS_SEEN_FILE, "w", encoding="utf-8") as f:
+            json.dump(pruned, f, ensure_ascii=False, indent=2)
+    except Exception as ex:
+        log.warning(f"   无法保存 seen_news.json: {ex}")
+
+
+def _is_seen(url: str, seen: dict) -> bool:
+    """Return True if this URL was seen within the dedup window."""
+    cutoff = (datetime.now() - timedelta(days=_NEWS_DEDUP_DAYS)).strftime("%Y-%m-%d")
+    return seen.get(url, "0000-00-00") >= cutoff
 
 
 def _fetch_rss(url: str, limit: int = 10) -> list:
@@ -437,23 +534,54 @@ def gen_news(today: str) -> list:
     """
     Fetch top-5 news per region via RSS, translate titles to Chinese with Claude,
     and return a list of region dicts ready for news_to_html().
+    Uses cross-day URL deduplication to avoid repeating articles across multiple days.
     """
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    seen_urls = _load_seen_news()
+    newly_seen: dict[str, str] = {}
+
     # Step 1: collect raw items per region (5 per region, 1 per source to ensure diversity)
     region_raw: dict[str, list] = {}
     for region, feeds in NEWS_REGIONS.items():
-        seen_titles: set = set()
+        seen_titles_today: set = set()
         items: list = []
         for src_name, url in feeds:
             if len(items) >= 5:
                 break
-            for entry in _fetch_rss(url, limit=8):
+            for entry in _fetch_rss(url, limit=15):
+                link = entry.get("link", "")
+                # Normalize URL key: strip query params for better dedup
+                url_key = link.split("?")[0].rstrip("/")
                 title_lower = entry["title"].lower()[:80]
-                if title_lower not in seen_titles:
-                    seen_titles.add(title_lower)
-                    entry["source"] = src_name
-                    items.append(entry)
-                    break  # one item per source to ensure all sources are represented
+                # Skip if already shown within the dedup window OR repeated within today
+                if _is_seen(url_key, seen_urls) or title_lower in seen_titles_today:
+                    continue
+                seen_titles_today.add(title_lower)
+                entry["source"] = src_name
+                items.append(entry)
+                newly_seen[url_key] = today_str
+                break  # one item per source to ensure all sources are represented
+        # Fallback: if dedup filtered too aggressively, fill with any non-today-duplicate
+        if len(items) < 3:
+            for src_name, url in feeds:
+                if len(items) >= 5:
+                    break
+                for entry in _fetch_rss(url, limit=15):
+                    title_lower = entry["title"].lower()[:80]
+                    if title_lower not in seen_titles_today:
+                        seen_titles_today.add(title_lower)
+                        entry["source"] = src_name
+                        items.append(entry)
+                        link = entry.get("link", "")
+                        url_key = link.split("?")[0].rstrip("/")
+                        newly_seen[url_key] = today_str
+                        break
         region_raw[region] = items[:5]
+
+    # Persist newly seen URLs
+    seen_urls.update(newly_seen)
+    _save_seen_news(seen_urls)
+    log.info(f"   新闻去重：跳过已见文章，本次新增 {len(newly_seen)} 条记录")
 
     # Step 2: batch-translate all titles with one Claude call
     all_items = []
