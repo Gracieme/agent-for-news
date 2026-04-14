@@ -18,6 +18,7 @@ DATA_DIR    = WEBSITE_DIR / "data"
 
 def save_entry(date_key: str, date_cn: str, day_cn: str,
                english_html: str, beauty_html: str, research_html: str,
+               mentor_html: str = "",
                news_html: str = ""):
     """Save one day's rendered HTML sections as a JSON file."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -28,6 +29,7 @@ def save_entry(date_key: str, date_cn: str, day_cn: str,
         "english":  english_html,
         "beauty":   beauty_html,
         "research": research_html,
+        "mentor":   mentor_html,
         "news":     news_html,
     }
     out = DATA_DIR / f"{date_key}.json"
@@ -197,6 +199,10 @@ SITE_TEMPLATE = """<!DOCTYPE html>
       border-color: #e65100; background: #fff3e0; color: #e65100;
       box-shadow: 0 2px 10px rgba(230,81,0,.18);
     }
+    .tab-btn[data-tab="mentor"].active {
+      border-color: #455a64; background: #eceff1; color: #455a64;
+      box-shadow: 0 2px 10px rgba(69,90,100,.18);
+    }
 
     /* ── Content panel ── */
     .content-panel {
@@ -247,6 +253,7 @@ SITE_TEMPLATE = """<!DOCTYPE html>
       <button class="tab-btn active" data-tab="english">📚 英语表达</button>
       <button class="tab-btn"        data-tab="beauty">💄 美妆</button>
       <button class="tab-btn"        data-tab="research">🔬 科研文献</button>
+      <button class="tab-btn"        data-tab="mentor">🎓 导师带读</button>
       <button class="tab-btn"        data-tab="news">📰 全球新闻</button>
     </div>
     <div class="content-panel" id="content-panel">
@@ -265,6 +272,17 @@ const ENTRIES = __ENTRIES_JSON__;
 
 let selIdx = ENTRIES.length > 0 ? 0 : -1;
 let selTab = 'english';
+
+const EMPTY_TAB_HTML = {
+  mentor: `
+    <div class="center-msg" style="color:#90a4ae">
+      <div class="big">🎓</div>
+      导师带读栏目已经开启。<br>
+      旧档案还没有回填内容；从下一次每日生成开始，<br>
+      这里会自动出现 1 篇论文精读、3 个好句子和当日写作练习。
+    </div>
+  `,
+};
 
 document.getElementById('total-days').textContent = ENTRIES.length;
 
@@ -289,6 +307,7 @@ function renderSidebar() {
         ${e.english  ? '<span class="dot">📚</span>' : ''}
         ${e.beauty   ? '<span class="dot">💄</span>' : ''}
         ${e.research ? '<span class="dot">🔬</span>' : ''}
+        ${e.mentor   ? '<span class="dot">🎓</span>' : ''}
         ${e.news     ? '<span class="dot">📰</span>' : ''}
       </div>
     </div>
@@ -306,6 +325,7 @@ function renderContent() {
   }
   const html = ENTRIES[selIdx][selTab];
   panel.innerHTML = html
+    || EMPTY_TAB_HTML[selTab]
     || '<div class="center-msg" style="color:#ccc">No content for this section</div>';
 }
 

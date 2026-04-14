@@ -11,8 +11,10 @@ import json
 import time
 import logging
 import urllib.parse
+import unicodedata
 from pathlib import Path
 from datetime import datetime, timedelta
+from typing import Optional
 
 import sendgrid
 from sendgrid.helpers.mail import Mail
@@ -120,12 +122,94 @@ BEAUTY_SYSTEM = """你是一位专业的美妆顾问与美容教育助手。
 - 品牌推荐要具体到产品线和色号，不能只说品牌名"""
 
 
-RESEARCH_RELEVANCE_SYSTEM = """你是一位应用语言学博士研究助手。用户的研究背景：
-【方向一】评估与语言权力：AP Chinese、assessment、epistemic injustice、washback、CDA
-【方向二】课堂互动与中介：CSL、translanguaging、LRE、peer interaction、MICM
-【方向三】教师与制度：DLI、teacher vulnerability、emotional labor、autoethnography
+RESEARCH_RELEVANCE_SYSTEM = """你是一位应用语言学博士研究助手。你会根据用户当前的研究画像、活跃稿件和当天的研究主线，判断一篇真实论文到底相关在哪一层。
 
-给你一篇真实论文的标题和摘要，请用2-3句中文说明它与上述研究方向的关联性。只输出关联性说明，不要其他内容。"""
+请用 2-3 句中文完成两件事：
+1. 说明这篇论文最贴近用户哪条研究主线；
+2. 说明它最值得借鉴的是问题意识、理论框架、方法设计、结果表达或英文写法中的哪一点。
+
+不要泛泛而谈。如果只是“部分相关”或“方法层相关”，要明确说出来。只输出关联性说明，不要其他内容。"""
+
+
+MENTOR_SYSTEM = """你是一位应用语言学教授，也是用户的博士生导师。用户是第一年博士生，想学会如何欣赏一篇好论文、如何拆解论文结构、以及如何写出更像期刊论文的英文。
+
+你会结合用户当前正在写的稿件与研究主线来带读，而不是给出泛泛的论文赏析。
+
+你只能依据用户提供的题目、作者、年份、期刊、检索主题和摘要来讲解；不要假装看过全文。凡是无法直接从摘要确定、但你做了合理推断的地方，必须明确写出“基于摘要推断”。
+
+你的任务不是泛泛夸奖，而是像导师带读一样，帮助学生学会：
+1. 这篇论文为什么值得读
+2. 作者的论证骨架是怎么搭起来的
+3. 哪些英文句子/句式值得抄写和模仿
+4. 今天可以立刻做什么小练习
+
+输出格式必须严格如下，不要添加格式说明之外的内容：
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎓 导师带读
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📄 焦点论文：作者（年份）. 标题
+📰 发表信息：期刊/来源
+🔗 论文入口：显示文字|链接
+📚 论文类型：必须判断为「理论文 / 实证文 / 混合型」，不确定时注明“基于摘要推断”
+🏅 这篇最值得学的是：必须从「idea / 文献综述 / 方法设计 / 研究实操 / 写作表达」里明确选 1-2 项，不许全选
+👓 今天主评维度：必须只选 1 个。若是理论文，优先从「idea / 文献综述」里选；若是实证文，优先从「方法设计 / 研究实操」里选；混合型再做判断
+👀 先品一品：
+1. ...
+2. ...
+🧩 拆解它是怎么写的：
+1. 先指出作者在这个维度上具体做了什么动作
+2. 再指出这种写法为什么有效
+3. 最后告诉学生写自己的论文时可以直接借什么结构/句法/推进顺序
+🎯 今日训练重点：一句话说明今天主要学什么写作能力
+🧭 导师开场：用2-4句中文告诉学生为什么今天先读这篇，以及读的时候该盯住什么
+🦴 文章骨架：
+1. ...
+2. ...
+3. ...
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✨ 好句 1
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔤 原句：英文短句，尽量直接摘自摘要，控制在18个英文词以内
+🔍 为什么强：说明这句好在哪里（如界定问题、压缩贡献、建立对比、控制语气、显示立场）
+🛠 你要学的写法：指出可以模仿的具体写作动作
+🧪 你的仿写模板：给一个可替换内容的英文模板句
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✨ 好句 2
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔤 原句：...
+🔍 为什么强：...
+🛠 你要学的写法：...
+🧪 你的仿写模板：...
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✨ 好句 3
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔤 原句：...
+🔍 为什么强：...
+🛠 你要学的写法：...
+🧪 你的仿写模板：...
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✍️ 今日练习
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 给一个15分钟内可完成的小写作任务
+2. 给一个“如何检查自己有没有写好”的自查标准
+3. 给一句导师式鼓励，但不要空泛
+
+要求：
+- 整体中文讲解要具体、可操作、像导师批注
+- 英文模板句要自然、学术、可直接仿写
+- 好句优先选“研究问题、理论定位、贡献表达、结果概括、立场控制”这几类
+- 必须先判断论文类型，再决定学习重点
+- “这篇最值得学的是”必须有判断，不要每次都说每一项都强
+- “今天主评维度”只能有 1 个，不要摇摆；并且要服从论文类型：理论文看 idea/综述，实证文看 方法设计/研究实操
+- “先品一品”要像导师判断论文长板和短板，不要变成重复摘要
+- “拆解它是怎么写的”必须讲写法，不要只讲内容
+- 不要输出长篇英文原文，不要超过3句引用
+- 不要使用“非常厉害”“很高级”这种空话"""
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -136,6 +220,139 @@ WEEKDAY_CN = {
     "Monday":"周一","Tuesday":"周二","Wednesday":"周三",
     "Thursday":"周四","Friday":"周五","Saturday":"周六","Sunday":"周日",
 }
+
+
+RESEARCH_PROFILE_FILE = Path(__file__).parent / "research_profile.json"
+
+
+GENERIC_RESEARCH_QUERIES = [
+    # 语言评估 & 考试效度
+    "language assessment validity washback Chinese EFL",
+    "high-stakes testing fairness equity language proficiency",
+    "CET college English test China validity construct",
+    "language testing bias standard exam score interpretation",
+    # 批判性思维
+    "critical thinking EFL Chinese university students",
+    "epistemic injustice language assessment washback Chinese",
+    "critical literacy academic writing second language",
+    "argument writing L2 English reasoning skills",
+    # 课堂互动 & 身份
+    "translanguaging peer interaction Chinese as second language classroom",
+    "identity negotiation multilingual classroom discourse",
+    "classroom interaction talk participation second language",
+    "language socialization heritage learners community",
+    # 教师情感 & 政策
+    "teacher emotional labor dual language immersion policy autoethnography",
+    "language policy bilingual education teacher beliefs",
+    "teacher identity professional development language classroom",
+    "emotion regulation teacher burnout language instruction",
+    # 写作 & 反馈
+    "written corrective feedback L2 writing revision",
+    "peer feedback academic writing EFL Chinese students",
+    "automated essay scoring NLP language learning",
+    "genre writing instruction English for academic purposes",
+]
+
+
+def _default_research_profile() -> dict:
+    return {
+        "summary": "用户关注应用语言学中的语言权力、课堂互动、教师制度处境与学术写作。",
+        "writing_goals": [
+            "学会把研究问题、方法和贡献写得更清楚",
+            "学会从摘要里拆解作者如何搭建论证",
+        ],
+        "active_drafts": [],
+        "strands": [
+            {
+                "name": "Applied linguistics fallback topic",
+                "query": query,
+                "anchors": [],
+                "writing_focus": "研究问题、方法与贡献表达",
+                "why": "未读取到个性化研究画像时的通用后备主题",
+            }
+            for query in GENERIC_RESEARCH_QUERIES
+        ],
+    }
+
+
+def _load_research_profile() -> dict:
+    profile = _default_research_profile()
+    if not RESEARCH_PROFILE_FILE.exists():
+        return profile
+    try:
+        with open(RESEARCH_PROFILE_FILE, encoding="utf-8") as f:
+            raw = json.load(f)
+    except Exception as ex:
+        log.warning("   无法读取 research_profile.json: %s", ex)
+        return profile
+
+    if isinstance(raw, dict):
+        summary = raw.get("summary")
+        if isinstance(summary, str) and summary.strip():
+            profile["summary"] = summary.strip()
+        writing_goals = raw.get("writing_goals")
+        if isinstance(writing_goals, list) and writing_goals:
+            profile["writing_goals"] = [str(item).strip() for item in writing_goals if str(item).strip()]
+        active_drafts = raw.get("active_drafts")
+        if isinstance(active_drafts, list):
+            profile["active_drafts"] = [item for item in active_drafts if isinstance(item, dict)]
+        strands = raw.get("strands")
+        valid_strands = []
+        if isinstance(strands, list):
+            for item in strands:
+                if not isinstance(item, dict):
+                    continue
+                query = str(item.get("query") or "").strip()
+                name = str(item.get("name") or "").strip()
+                if not query:
+                    continue
+                valid_strands.append({
+                    "name": name or query,
+                    "query": query,
+                    "anchors": item.get("anchors") if isinstance(item.get("anchors"), list) else [],
+                    "writing_focus": str(item.get("writing_focus") or "研究问题、方法与贡献表达").strip(),
+                    "why": str(item.get("why") or "").strip(),
+                    "keywords": item.get("keywords") if isinstance(item.get("keywords"), list) else [],
+                })
+        if valid_strands:
+            profile["strands"] = valid_strands
+    return profile
+
+
+def _draft_titles(profile: dict, limit: int = 5) -> list[str]:
+    titles = []
+    for draft in profile.get("active_drafts", []):
+        if not isinstance(draft, dict):
+            continue
+        title = str(draft.get("short_name") or draft.get("title") or "").strip()
+        if title:
+            titles.append(title)
+        if len(titles) >= limit:
+            break
+    return titles
+
+
+def _topic_anchor_text(topic: Optional[dict], limit: int = 4) -> str:
+    if not isinstance(topic, dict):
+        return "当前研究线索"
+    anchors = [str(item).strip() for item in topic.get("anchors", []) if str(item).strip()]
+    return " / ".join(anchors[:limit]) if anchors else "当前研究线索"
+
+
+def _profile_prompt_context(profile: dict, topic: Optional[dict] = None) -> str:
+    lines = [f"研究画像：{profile.get('summary', '')}"]
+    drafts = _draft_titles(profile)
+    if drafts:
+        lines.append(f"活跃稿件：{'；'.join(drafts)}")
+    if isinstance(topic, dict):
+        lines.append(f"今日主线：{topic.get('name', '')}")
+        lines.append(f"对应草稿：{_topic_anchor_text(topic)}")
+        if topic.get("writing_focus"):
+            lines.append(f"今天最该强化的写作能力：{topic['writing_focus']}")
+    writing_goals = [str(item).strip() for item in profile.get("writing_goals", []) if str(item).strip()]
+    if writing_goals:
+        lines.append(f"长期写作目标：{'；'.join(writing_goals[:4])}")
+    return "\n".join(line for line in lines if line.strip())
 
 def collect(system: str, user_prompt: str, max_tokens: int = 3500, **kwargs) -> str:
     """Call Claude API and return full streamed text."""
@@ -349,60 +566,80 @@ def _paper_to_text(paper: dict, n: int, relevance: str) -> str:
     )
 
 
-def gen_research(today: str) -> str:
-    queries = [
-        # 语言评估 & 考试效度
-        "language assessment validity washback Chinese EFL",
-        "high-stakes testing fairness equity language proficiency",
-        "CET college English test China validity construct",
-        "language testing bias standard exam score interpretation",
-        # 批判性思维
-        "critical thinking EFL Chinese university students",
-        "epistemic injustice language assessment washback Chinese",
-        "critical literacy academic writing second language",
-        "argument writing L2 English reasoning skills",
-        # 课堂互动 & 身份
-        "translanguaging peer interaction Chinese as second language classroom",
-        "identity negotiation multilingual classroom discourse",
-        "classroom interaction talk participation second language",
-        "language socialization heritage learners community",
-        # 教师情感 & 政策
-        "teacher emotional labor dual language immersion policy autoethnography",
-        "language policy bilingual education teacher beliefs",
-        "teacher identity professional development language classroom",
-        "emotion regulation teacher burnout language instruction",
-        # 写作 & 反馈
-        "written corrective feedback L2 writing revision",
-        "peer feedback academic writing EFL Chinese students",
-        "automated essay scoring NLP language learning",
-        "genre writing instruction English for academic purposes",
-    ]
-    now = datetime.now()
-    # 用年积日而不是月内日期，保证整年内不重复
-    day_of_year = now.timetuple().tm_yday
-    query_idx = day_of_year % len(queries)
-    query = queries[query_idx]
-    # 每轮完整循环后翻到下一页，避免同一查询反复返回相同结果
-    page = (day_of_year // len(queries)) + 1
-    log.info(f"   OpenAlex 搜索: {query} (第 {page} 页)")
+def _select_research_topic(today: str, profile: Optional[dict] = None) -> tuple[dict, int]:
+    profile = profile or _load_research_profile()
+    topics = [item for item in profile.get("strands", []) if isinstance(item, dict) and item.get("query")]
+    if not topics:
+        topics = _default_research_profile()["strands"]
+
+    target_dt = _parse_target_date(today)
+    day_of_year = target_dt.timetuple().tm_yday
+    topic_idx = day_of_year % len(topics)
+    topic = topics[topic_idx]
+    page = (day_of_year // len(topics)) + 1
+    return topic, page
+
+
+def fetch_research_papers(today: str, limit: int = 3, profile: Optional[dict] = None) -> tuple[dict, list]:
+    topic, page = _select_research_topic(today, profile=profile)
+    query = topic.get("query", "")
+    log.info("   OpenAlex 搜索: %s | %s (第 %s 页)", topic.get("name", "研究主线"), query, page)
 
     try:
-        papers = _openalex_search(query, limit=3, page=page)
+        papers = _openalex_search(query, limit=limit, page=page)
     except Exception as ex:
         log.warning(f"   OpenAlex 请求失败: {ex}")
         papers = []
+    return topic, papers
+
+
+def _research_intro_lines(topic: Optional[dict]) -> list[str]:
+    if not isinstance(topic, dict):
+        return []
+    lines = [
+        "━━━━━━━━━━━━━━━━━━━━━━━━",
+        "🎯 今日研究主线",
+        "━━━━━━━━━━━━━━━━━━━━━━━━",
+        f"🧭 选题方向：{topic.get('name', '应用语言学')}",
+        f"🧷 对应草稿：{_topic_anchor_text(topic)}",
+        f"🔎 检索主题：{topic.get('query', '')}",
+    ]
+    why = str(topic.get("why") or "").strip()
+    if why:
+        lines.append(f"🪄 为什么是它：{why}")
+    writing_focus = str(topic.get("writing_focus") or "").strip()
+    if writing_focus:
+        lines.append(f"✍️ 今天重点：{writing_focus}")
+    return lines
+
+
+def gen_research(
+    today: str,
+    papers: Optional[list] = None,
+    topic: Optional[dict] = None,
+    profile: Optional[dict] = None,
+) -> str:
+    profile = profile or _load_research_profile()
+    if papers is None:
+        topic, papers = fetch_research_papers(today, limit=3, profile=profile)
+
+    parts = _research_intro_lines(topic)
 
     if not papers:
-        return "（今日无法获取论文数据，请稍后查看）"
+        parts.append("（今日无法获取论文数据，请稍后查看）")
+        return "\n".join(parts)
 
-    parts = []
     for i, paper in enumerate(papers, 1):
         title    = paper.get("title", "")
         abstract = _reconstruct_abstract(paper.get("abstract_inverted_index") or {})
         try:
             relevance = collect(
                 RESEARCH_RELEVANCE_SYSTEM,
-                f"标题：{title}\n摘要：{abstract[:600]}",
+                (
+                    f"{_profile_prompt_context(profile, topic)}\n\n"
+                    f"标题：{title}\n"
+                    f"摘要：{abstract[:600]}"
+                ),
                 max_tokens=200,
             ).strip()
         except Exception:
@@ -410,6 +647,158 @@ def gen_research(today: str) -> str:
         parts.append(_paper_to_text(paper, i, relevance))
 
     return "\n".join(parts)
+
+
+def _paper_authors_short(paper: dict) -> str:
+    authors = [
+        a["author"]["display_name"]
+        for a in paper.get("authorships", [])[:3]
+        if a.get("author")
+    ]
+    if not authors:
+        return "作者未知"
+    if len(paper.get("authorships", [])) > 3:
+        authors.append("et al.")
+    return ", ".join(authors)
+
+
+def _paper_link_parts(paper: dict) -> tuple[str, str]:
+    doi = paper.get("doi", "")
+    title = paper.get("title", "") or "Google Scholar"
+    if doi:
+        link_url = doi if doi.startswith("http") else f"https://doi.org/{doi}"
+        link_text = doi.replace("https://doi.org/", "")
+        return link_text, link_url
+    q = urllib.parse.quote(title)
+    return "Google Scholar 搜索", f"https://scholar.google.com/scholar?q={q}"
+
+
+def _infer_paper_type(title: str, abstract: str) -> tuple[str, list[str], str]:
+    text = f"{title} {abstract}".lower()
+
+    empirical_hits = 0
+    theoretical_hits = 0
+
+    empirical_markers = [
+        "data", "dataset", "participants", "sample", "interview", "survey", "questionnaire",
+        "corpus", "recording", "recordings", "classroom", "students", "teachers",
+        "case study", "action research", "ethnograph", "autoethnograph", "experiment",
+        "results", "findings", "analysis", "analyze", "examines", "reports", "episodes",
+        "chi-square", "anova", "regression", "coding", "coded", "observed",
+    ]
+    theoretical_markers = [
+        "conceptual", "theoretical", "framework", "reconceptualizing", "reconceptualises",
+        "reconceptualizing", "argues", "argue", "proposes", "proposal", "revisits",
+        "rethinking", "toward", "towards", "ontology", "epistemic", "politics",
+        "review", "literature review", "synthesis", "critique", "commentary",
+        "analytic lens", "concept", "model", "theory",
+    ]
+
+    for marker in empirical_markers:
+        if marker in text:
+            empirical_hits += 1
+    for marker in theoretical_markers:
+        if marker in text:
+            theoretical_hits += 1
+
+    has_sample_signal = bool(re.search(r"\b\d+\b", text)) and any(
+        marker in text for marker in ["participants", "posts", "comments", "episodes", "students", "teachers"]
+    )
+    if has_sample_signal:
+        empirical_hits += 2
+
+    if empirical_hits >= theoretical_hits + 2:
+        return (
+            "实证文（基于摘要推断）",
+            ["方法设计", "研究实操"],
+            "摘要里有明显的数据、样本、课堂/语料或分析过程信号，适合优先学习研究设计与执行。",
+        )
+    if theoretical_hits >= empirical_hits + 2:
+        return (
+            "理论文（基于摘要推断）",
+            ["idea", "文献综述"],
+            "摘要更强调概念重构、理论主张或文献位置，适合优先学习问题意识与综述搭建。",
+        )
+    return (
+        "混合型（基于摘要推断）",
+        ["idea", "方法设计"],
+        "摘要同时有理论推进和经验材料，适合先看作者如何把概念主张与证据链扣在一起。",
+    )
+
+
+def gen_paper_mentor(
+    today: str,
+    focus_paper: Optional[dict] = None,
+    topic: Optional[dict] = None,
+    profile: Optional[dict] = None,
+) -> str:
+    profile = profile or _load_research_profile()
+    if focus_paper is None:
+        topic, papers = fetch_research_papers(today, limit=1, profile=profile)
+        focus_paper = papers[0] if papers else None
+
+    if not focus_paper:
+        return "（今日暂无可精读的论文，请稍后查看）"
+
+    title = focus_paper.get("title", "")
+    authors = _paper_authors_short(focus_paper)
+    year = focus_paper.get("publication_year", "")
+    venue = ((focus_paper.get("primary_location") or {}).get("source") or {}).get("display_name", "—")
+    abstract = _reconstruct_abstract(focus_paper.get("abstract_inverted_index") or {})
+    link_text, link_url = _paper_link_parts(focus_paper)
+    paper_type, suggested_axes, paper_type_note = _infer_paper_type(title, abstract)
+
+    prompt = (
+        f"今天是 {today}。\n"
+        f"{_profile_prompt_context(profile, topic)}\n"
+        f"今天的检索主题：{(topic or {}).get('query', '应用语言学相关主题')}\n"
+        f"作者：{authors}\n"
+        f"年份：{year}\n"
+        f"标题：{title}\n"
+        f"期刊/来源：{venue}\n"
+        f"论文入口：{link_text}|{link_url}\n\n"
+        f"基于标题与摘要预判论文类型：{paper_type}\n"
+        f"建议优先学习维度：{' / '.join(suggested_axes)}\n"
+        f"判断说明：{paper_type_note}\n\n"
+        "请把这篇论文当成与用户当前稿件对话的一篇样本来带读，优先讲清它对用户现有写作最有帮助的地方。"
+        "如果某处只能根据摘要合理推断，必须明确写“基于摘要推断”。\n\n"
+        f"摘要：\n{abstract[:1800] or '摘要不可用'}"
+    )
+
+    try:
+        return collect(MENTOR_SYSTEM, prompt, max_tokens=1800).strip()
+    except Exception as ex:
+        log.warning(f"   导师带读生成失败: {ex}")
+        return (
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "🎓 导师带读\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📄 焦点论文：{authors}（{year}）. {title}\n"
+            f"📰 发表信息：{venue}\n"
+            f"🔗 论文入口：{link_text}|{link_url}\n"
+            f"📚 论文类型：{paper_type}\n"
+            f"🏅 这篇最值得学的是：{' + '.join(suggested_axes)}\n"
+            f"👓 今天主评维度：{suggested_axes[0]}\n"
+            "👀 先品一品：\n"
+            f"1. 类型判断：{paper_type_note}\n"
+            f"2. 学习重点：今天不要平均用力，先盯住 {suggested_axes[0]}，再用 {suggested_axes[-1]} 辅助判断这篇文章的精华在哪里。\n"
+            "🧩 拆解它是怎么写的：\n"
+            f"1. 作者先围绕 {suggested_axes[0]} 做核心推进，而不是同时想把所有东西都讲满。\n"
+            f"2. 这样写有效，是因为读者会更快抓住这篇文章真正的长板，而不是被背景信息冲散注意力。\n"
+            f"3. 你自己写时，也要先决定这篇稿子最该靠 {suggested_axes[0]} 站住，还是靠 {suggested_axes[-1]} 站住，再安排段落顺序。\n"
+            "🎯 今日训练重点：先学会如何从标题与摘要看出作者真正的研究贡献\n"
+            "🧭 导师开场：今天先别急着做大而空的评论。先问自己三件事：作者在解决什么问题？凭什么这个问题值得研究？摘要里哪一句最像“贡献句”？\n"
+            "🦴 文章骨架：\n"
+            "1. 先界定研究对象与问题。\n"
+            "2. 再说明理论/方法如何介入。\n"
+            "3. 最后看作者如何压缩贡献与意义。\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "✍️ 今日练习\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "1. 用 3 句英文写出这篇论文的“问题—方法—贡献”摘要。\n"
+            "2. 检查每句是否都在推进论点，而不是重复背景信息。\n"
+            "3. 今天先写短句、写清楚，比写得华丽更重要。\n"
+        )
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -483,23 +872,61 @@ NEWS_REGIONS = {
 
 _NEWS_SEEN_FILE = Path(__file__).parent / "seen_news.json"
 _NEWS_DEDUP_DAYS = 7  # 跳过最近7天出现过的文章
+_NEWS_SOURCE_COOLDOWN_DAYS = 2  # 同一来源连续几天内尽量不重复上榜
+_NEWS_MAX_ARTICLE_AGE_DAYS = 3  # 优先显示最近3天内的新文章
+_NEWS_HISTORY_RETENTION_DAYS = 21  # 状态文件最多保留近3周，避免无限增长
+
+
+def _parse_target_date(value: str) -> datetime:
+    """Accept either 2026-04-13 or 2026年04月13日; fall back to now."""
+    for fmt in ("%Y-%m-%d", "%Y年%m月%d日"):
+        try:
+            return datetime.strptime(value, fmt)
+        except Exception:
+            pass
+    return datetime.now()
+
+
+def _cutoff_str(days: int, today_dt: datetime) -> str:
+    return (today_dt - timedelta(days=days)).strftime("%Y-%m-%d")
+
+
+def _prune_recent_map(records: dict, days: int, today_dt: datetime) -> dict:
+    cutoff = _cutoff_str(days, today_dt)
+    return {k: v for k, v in records.items() if isinstance(v, str) and v >= cutoff}
 
 
 def _load_seen_news() -> dict:
-    """Load seen news URLs with their first-seen date."""
+    """Load persisted news state; support the legacy {url: date} format."""
+    empty = {"urls": {}, "titles": {}, "sources": {}}
     if _NEWS_SEEN_FILE.exists():
         try:
             with open(_NEWS_SEEN_FILE, encoding="utf-8") as f:
-                return json.load(f)
+                raw = json.load(f)
+            if not isinstance(raw, dict):
+                return empty
+            # Legacy format: {url_key: "YYYY-MM-DD"}
+            if raw and all(isinstance(v, str) for v in raw.values()) and not any(
+                key in raw for key in ("urls", "titles", "sources")
+            ):
+                return {"urls": raw, "titles": {}, "sources": {}}
+            return {
+                "urls": raw.get("urls", {}) if isinstance(raw.get("urls", {}), dict) else {},
+                "titles": raw.get("titles", {}) if isinstance(raw.get("titles", {}), dict) else {},
+                "sources": raw.get("sources", {}) if isinstance(raw.get("sources", {}), dict) else {},
+            }
         except Exception:
-            pass
-    return {}
+            return empty
+    return empty
 
 
-def _save_seen_news(seen: dict) -> None:
-    """Persist seen news URLs, pruning entries older than DEDUP_DAYS."""
-    cutoff = (datetime.now() - timedelta(days=_NEWS_DEDUP_DAYS)).strftime("%Y-%m-%d")
-    pruned = {url: date for url, date in seen.items() if date >= cutoff}
+def _save_seen_news(seen: dict, today_dt: datetime) -> None:
+    """Persist seen news state, pruning stale URL/title/source history."""
+    pruned = {
+        "urls": _prune_recent_map(seen.get("urls", {}), _NEWS_HISTORY_RETENTION_DAYS, today_dt),
+        "titles": _prune_recent_map(seen.get("titles", {}), _NEWS_HISTORY_RETENTION_DAYS, today_dt),
+        "sources": _prune_recent_map(seen.get("sources", {}), _NEWS_HISTORY_RETENTION_DAYS, today_dt),
+    }
     try:
         with open(_NEWS_SEEN_FILE, "w", encoding="utf-8") as f:
             json.dump(pruned, f, ensure_ascii=False, indent=2)
@@ -507,10 +934,73 @@ def _save_seen_news(seen: dict) -> None:
         log.warning(f"   无法保存 seen_news.json: {ex}")
 
 
-def _is_seen(url: str, seen: dict) -> bool:
-    """Return True if this URL was seen within the dedup window."""
-    cutoff = (datetime.now() - timedelta(days=_NEWS_DEDUP_DAYS)).strftime("%Y-%m-%d")
-    return seen.get(url, "0000-00-00") >= cutoff
+def _is_recent(key: str, records: dict, days: int, today_dt: datetime) -> bool:
+    """Return True if key was seen within the requested time window."""
+    if not key:
+        return False
+    return records.get(key, "0000-00-00") >= _cutoff_str(days, today_dt)
+
+
+def _normalize_news_url(link: str) -> str:
+    if not link:
+        return ""
+    try:
+        parsed = urllib.parse.urlsplit(link.strip())
+        return urllib.parse.urlunsplit(
+            (
+                parsed.scheme.lower(),
+                parsed.netloc.lower(),
+                parsed.path.rstrip("/"),
+                "",
+                "",
+            )
+        )
+    except Exception:
+        return link.split("?")[0].rstrip("/")
+
+
+def _normalize_news_title(title: str) -> str:
+    text = html.unescape(title or "")
+    text = unicodedata.normalize("NFKC", text).lower()
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"[\u2018\u2019\u201c\u201d'\"`]", "", text)
+    text = re.sub(r"[^0-9a-z\u4e00-\u9fff]+", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    # Use a stable prefix so tiny suffix changes do not create a new “story”.
+    return " ".join(text.split()[:14])
+
+
+def _source_history_key(region: str, source: str) -> str:
+    return f"{region}::{source}"
+
+
+def _entry_is_fresh(entry: dict, today_dt: datetime) -> bool:
+    published = entry.get("published_parsed")
+    if not published:
+        return True
+    try:
+        pub_dt = datetime(*published[:6])
+    except Exception:
+        return True
+    return pub_dt >= (today_dt - timedelta(days=_NEWS_MAX_ARTICLE_AGE_DAYS))
+
+
+def _ordered_feeds_for_day(region: str, feeds: list, seen_state: dict, today_dt: datetime) -> list:
+    """Rotate source order daily, but deprioritize sources used very recently."""
+    if not feeds:
+        return []
+    rotation = today_dt.toordinal() % len(feeds)
+    rotated = feeds[rotation:] + feeds[:rotation]
+    preferred = []
+    cooldown = []
+    source_history = seen_state.get("sources", {})
+    for src_name, url in rotated:
+        key = _source_history_key(region, src_name)
+        if _is_recent(key, source_history, _NEWS_SOURCE_COOLDOWN_DAYS, today_dt):
+            cooldown.append((src_name, url))
+        else:
+            preferred.append((src_name, url))
+    return preferred + cooldown
 
 
 def _fetch_rss(url: str, limit: int = 10) -> list:
@@ -523,7 +1013,11 @@ def _fetch_rss(url: str, limit: int = 10) -> list:
             title = (entry.get("title") or "").strip()
             link  = (entry.get("link")  or "").strip()
             if title and link:
-                items.append({"title": title, "link": link})
+                items.append({
+                    "title": title,
+                    "link": link,
+                    "published_parsed": entry.get("published_parsed") or entry.get("updated_parsed"),
+                })
         return items
     except Exception as ex:
         log.warning(f"   RSS 获取失败 ({url}): {ex}")
@@ -536,52 +1030,76 @@ def gen_news(today: str) -> list:
     and return a list of region dicts ready for news_to_html().
     Uses cross-day URL deduplication to avoid repeating articles across multiple days.
     """
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    seen_urls = _load_seen_news()
-    newly_seen: dict[str, str] = {}
+    today_dt = _parse_target_date(today)
+    today_str = today_dt.strftime("%Y-%m-%d")
+    seen_state = _load_seen_news()
+    newly_seen = {"urls": {}, "titles": {}, "sources": {}}
+    seen_title_keys_global: set[str] = set()
 
-    # Step 1: collect raw items per region (5 per region, 1 per source to ensure diversity)
+    # Step 1: collect raw items per region.
+    # Strategy:
+    # - rotate source order by day so later feeds also get a turn
+    # - avoid sources used very recently when alternatives exist
+    # - dedup both by URL and normalized title fingerprint
+    # - prefer newer stories first, then relax freshness/source cooldown only if needed
     region_raw: dict[str, list] = {}
     for region, feeds in NEWS_REGIONS.items():
-        seen_titles_today: set = set()
+        seen_titles_today: set[str] = set()
         items: list = []
-        for src_name, url in feeds:
-            if len(items) >= 5:
-                break
-            for entry in _fetch_rss(url, limit=15):
-                link = entry.get("link", "")
-                # Normalize URL key: strip query params for better dedup
-                url_key = link.split("?")[0].rstrip("/")
-                title_lower = entry["title"].lower()[:80]
-                # Skip if already shown within the dedup window OR repeated within today
-                if _is_seen(url_key, seen_urls) or title_lower in seen_titles_today:
-                    continue
-                seen_titles_today.add(title_lower)
-                entry["source"] = src_name
-                items.append(entry)
-                newly_seen[url_key] = today_str
-                break  # one item per source to ensure all sources are represented
-        # Fallback: if dedup filtered too aggressively, fill with any non-today-duplicate
-        if len(items) < 3:
-            for src_name, url in feeds:
+        ordered_feeds = _ordered_feeds_for_day(region, feeds, seen_state, today_dt)
+
+        def try_collect(allow_recent_source: bool, allow_stale_story: bool) -> None:
+            for src_name, url in ordered_feeds:
                 if len(items) >= 5:
                     break
-                for entry in _fetch_rss(url, limit=15):
-                    title_lower = entry["title"].lower()[:80]
-                    if title_lower not in seen_titles_today:
-                        seen_titles_today.add(title_lower)
-                        entry["source"] = src_name
-                        items.append(entry)
-                        link = entry.get("link", "")
-                        url_key = link.split("?")[0].rstrip("/")
-                        newly_seen[url_key] = today_str
-                        break
+                if any(existing.get("source") == src_name for existing in items):
+                    continue
+                source_key = _source_history_key(region, src_name)
+                if (
+                    not allow_recent_source
+                    and _is_recent(source_key, seen_state.get("sources", {}), _NEWS_SOURCE_COOLDOWN_DAYS, today_dt)
+                ):
+                    continue
+                for entry in _fetch_rss(url, limit=20):
+                    url_key = _normalize_news_url(entry.get("link", ""))
+                    title_key = _normalize_news_title(entry.get("title", ""))
+                    if not url_key or not title_key:
+                        continue
+                    if _is_recent(url_key, seen_state.get("urls", {}), _NEWS_DEDUP_DAYS, today_dt):
+                        continue
+                    if _is_recent(title_key, seen_state.get("titles", {}), _NEWS_DEDUP_DAYS, today_dt):
+                        continue
+                    if title_key in seen_titles_today or title_key in seen_title_keys_global:
+                        continue
+                    if not allow_stale_story and not _entry_is_fresh(entry, today_dt):
+                        continue
+                    seen_titles_today.add(title_key)
+                    seen_title_keys_global.add(title_key)
+                    entry["source"] = src_name
+                    items.append(entry)
+                    newly_seen["urls"][url_key] = today_str
+                    newly_seen["titles"][title_key] = today_str
+                    newly_seen["sources"][source_key] = today_str
+                    break
+
+        try_collect(allow_recent_source=False, allow_stale_story=False)
+        if len(items) < 3:
+            try_collect(allow_recent_source=True, allow_stale_story=False)
+        if len(items) < 3:
+            try_collect(allow_recent_source=True, allow_stale_story=True)
         region_raw[region] = items[:5]
 
-    # Persist newly seen URLs
-    seen_urls.update(newly_seen)
-    _save_seen_news(seen_urls)
-    log.info(f"   新闻去重：跳过已见文章，本次新增 {len(newly_seen)} 条记录")
+    # Persist newly seen state
+    seen_state["urls"].update(newly_seen["urls"])
+    seen_state["titles"].update(newly_seen["titles"])
+    seen_state["sources"].update(newly_seen["sources"])
+    _save_seen_news(seen_state, today_dt)
+    log.info(
+        "   新闻去重：新增 URL %s 条、标题指纹 %s 条、来源记录 %s 条",
+        len(newly_seen["urls"]),
+        len(newly_seen["titles"]),
+        len(newly_seen["sources"]),
+    )
 
     # Step 2: batch-translate all titles with one Claude call
     all_items = []
@@ -879,6 +1397,12 @@ def research_to_html(text: str) -> str:
     parts = []
 
     ICON_STYLES = {
+        "🎯": ("#455a64", "研究主线"),
+        "🧭": ("#546e7a", "选题方向"),
+        "🧷": ("#6a1b9a", "对应草稿"),
+        "🔎": ("#1565c0", "检索主题"),
+        "🪄": ("#8e24aa", "为什么是它"),
+        "✍️": ("#2e7d32", "今天重点"),
         "📌": ("#c62828", "作者"),
         "📖": ("#1565c0", "标题"),
         "📰": ("#00838f", "期刊"),
@@ -896,6 +1420,20 @@ def research_to_html(text: str) -> str:
         s = raw.strip()
 
         if s and all(c in "━─═-" for c in s):
+            continue
+
+        if s == "🎯 今日研究主线":
+            if in_card:
+                parts.append("</div>")
+            parts.append(
+                '<div style="background:#fff;border:1px solid #d9eef2;border-radius:10px;'
+                'padding:20px 22px;margin:16px 0;box-shadow:0 2px 8px rgba(0,0,0,0.05)">'
+                '<div style="background:linear-gradient(135deg,#00838f,#26c6da);'
+                'color:#fff;padding:10px 16px;border-radius:6px;margin:-20px -22px 16px;'
+                'font-weight:700;font-size:15px;letter-spacing:0.6px">🎯 今日研究主线</div>'
+            )
+            in_card = True
+            current_title = ""
             continue
 
         # Paper card header
@@ -981,6 +1519,140 @@ def research_to_html(text: str) -> str:
     return "\n".join(parts)
 
 
+def mentor_to_html(text: str) -> str:
+    """Render the daily PhD mentor-guided paper reading column."""
+    import urllib.parse
+
+    parts = []
+    in_card = False
+
+    CARD_STYLES = {
+        "🎓 导师带读": ("linear-gradient(135deg,#455a64,#607d8b)", "#fff"),
+        "✨ 好句": ("linear-gradient(135deg,#ffb300,#ef6c00)", "#fff"),
+        "✍️ 今日练习": ("linear-gradient(135deg,#43a047,#2e7d32)", "#fff"),
+    }
+    FIELD_STYLES = {
+        "📄": "#5d4037",
+        "📰": "#00695c",
+        "🔗": "#1565c0",
+        "🏅": "#ad1457",
+        "👓": "#283593",
+        "👀": "#6d4c41",
+        "🧩": "#00838f",
+        "🎯": "#6a1b9a",
+        "🧭": "#455a64",
+        "🦴": "#8d6e63",
+        "🔤": "#c62828",
+        "🔍": "#6d4c41",
+        "🛠": "#00838f",
+        "🧪": "#7b1fa2",
+    }
+
+    def start_card(title: str) -> None:
+        nonlocal in_card
+        if in_card:
+            parts.append("</div>")
+        bg, fg = CARD_STYLES["🎓 导师带读"]
+        for prefix, style in CARD_STYLES.items():
+            if title.startswith(prefix):
+                bg, fg = style
+                break
+        parts.append(
+            f'<div style="background:#fff;border:1px solid #e0e0e0;border-radius:12px;'
+            f'padding:20px 22px;margin:16px 0;box-shadow:0 2px 8px rgba(0,0,0,.06)">'
+            f'<div style="background:{bg};color:{fg};padding:11px 16px;border-radius:8px;'
+            f'margin:-20px -22px 16px;font-weight:700;font-size:15px;letter-spacing:0.5px">'
+            f'{e(title)}</div>'
+        )
+        in_card = True
+
+    for raw in text.splitlines():
+        s = raw.strip()
+
+        if s and all(c in "━─═-" for c in s):
+            continue
+
+        if s in ("🎓 导师带读", "✍️ 今日练习") or s.startswith("✨ 好句"):
+            start_card(s)
+            continue
+
+        matched_field = False
+        for icon, color in FIELD_STYLES.items():
+            if s.startswith(icon):
+                key_end = s.find("：") + 1 if "：" in s else len(icon)
+                key_part = s[:key_end]
+                body_part = s[key_end:].strip()
+
+                if icon == "🔗":
+                    raw_link = body_part.strip()
+                    if "|" in raw_link:
+                        link_text, link_url = raw_link.split("|", 1)
+                    else:
+                        q = urllib.parse.quote(raw_link)
+                        link_text = "Google Scholar 搜索"
+                        link_url = f"https://scholar.google.com/scholar?q={q}"
+                    body_html = (
+                        f'<a href="{e(link_url)}" target="_blank" rel="noopener" '
+                        f'style="color:#1a73e8;text-decoration:none">🔍 {e(link_text)}</a>'
+                    )
+                elif not body_part:
+                    body_html = ""
+                else:
+                    body_html = md(body_part)
+
+                if not body_part:
+                    parts.append(
+                        f'<div style="margin:16px 0 8px;color:{color};font-size:14px;'
+                        f'font-weight:700;padding-bottom:5px;border-bottom:1px solid #eceff1">{e(key_part)}</div>'
+                    )
+                else:
+                    parts.append(
+                        f'<table width="100%" cellpadding="0" cellspacing="0" '
+                        f'style="margin:8px 0;border-collapse:collapse"><tr>'
+                        f'<td width="102" valign="top" style="color:{color};font-weight:700;'
+                        f'font-size:13px;padding-right:8px;white-space:nowrap">{e(key_part)}</td>'
+                        f'<td valign="top" style="color:#333;font-size:14px;line-height:1.8">{body_html}</td>'
+                        f'</tr></table>'
+                    )
+                matched_field = True
+                break
+        if matched_field:
+            continue
+
+        m = re.match(r"^(\d{1,2})[.)、]\s+(.+)", s)
+        if m:
+            num, content = m.groups()
+            parts.append(
+                f'<div style="display:flex;align-items:flex-start;margin:8px 0;padding:10px 14px;'
+                f'background:#f7fafc;border-radius:9px;border:1px solid #e6edf3">'
+                f'<span style="color:#455a64;font-weight:700;min-width:28px;font-size:13px">{num}.</span>'
+                f'<span style="color:#333;font-size:14px;line-height:1.75">{md(content)}</span>'
+                f'</div>'
+            )
+            continue
+
+        if s.startswith("⚠"):
+            parts.append(
+                f'<div style="background:#fff8e1;border-left:4px solid #fb8c00;'
+                f'padding:9px 14px;margin:10px 0;border-radius:0 6px 6px 0;'
+                f'color:#bf360c;font-size:13px;line-height:1.7">{md(s)}</div>'
+            )
+            continue
+
+        if not s:
+            parts.append('<div style="height:6px"></div>')
+            continue
+
+        parts.append(
+            f'<p style="margin:6px 0;color:#555;font-size:14px;line-height:1.8">{md(s)}</p>'
+        )
+
+    if in_card:
+        parts.append("</div>")
+
+    return "\n".join(parts)
+
+
 # ══════════════════════════════════════════════════════════════════
 #  HTML EMAIL TEMPLATE
 # ══════════════════════════════════════════════════════════════════
@@ -1051,6 +1723,7 @@ def build_email_html(
     eng_html: str,
     bty_html: str,
     res_html: str,
+    mentor_html: str,
     news_html: str,
     date_str: str,
     day_cn: str,
@@ -1143,6 +1816,25 @@ def build_email_html(
     <!-- ══ DIVIDER ══ -->
     <div style="height:6px;background:linear-gradient(90deg,#00bcd4,#ff9800,#4caf50)"></div>
 
+    <!-- ══ MENTOR SECTION ══ -->
+    <div style="background:#fafbfc;border-top:5px solid #546e7a;padding:28px 32px">
+      <div style="display:flex;align-items:center;margin-bottom:20px">
+        <div style="width:48px;height:48px;background:linear-gradient(135deg,#607d8b,#455a64);
+          border-radius:12px;display:flex;align-items:center;justify-content:center;
+          font-size:22px;flex-shrink:0">🎓</div>
+        <div style="margin-left:14px">
+          <h2 style="margin:0;font-size:19px;color:#455a64;font-weight:700">导师带读助手</h2>
+          <p style="margin:3px 0 0;font-size:12px;color:#888;letter-spacing:0.5px">
+            PhD Writing Mentor &nbsp;·&nbsp; 论文精读 &nbsp;·&nbsp; 句子仿写
+          </p>
+        </div>
+      </div>
+      {mentor_html}
+    </div>
+
+    <!-- ══ DIVIDER ══ -->
+    <div style="height:6px;background:linear-gradient(90deg,#546e7a,#ff9800,#4caf50)"></div>
+
     <!-- ══ NEWS SECTION ══ -->
     <div style="background:#fafafa;border-top:5px solid #ff6f00;padding:28px 32px">
       <div style="display:flex;align-items:center;margin-bottom:20px">
@@ -1166,7 +1858,7 @@ def build_email_html(
         🤖 &nbsp;Powered by Claude Opus 4.6 &nbsp;·&nbsp; Hits your inbox every morning at 8:00 AM Denver time
       </p>
       <p style="color:#666;margin:0;font-size:11px">
-        American English &nbsp;·&nbsp; 美妆护肤 &nbsp;·&nbsp; 应用语言学科研 &nbsp;·&nbsp; 全球新闻
+        American English &nbsp;·&nbsp; 美妆护肤 &nbsp;·&nbsp; 应用语言学科研 &nbsp;·&nbsp; 导师带读 &nbsp;·&nbsp; 全球新闻
       </p>
     </div>
 
@@ -1218,9 +1910,26 @@ def main():
     bty_text = gen_beauty(date_str, weekday, day_cn)
     log.info(f"   完成，{len(bty_text)} 字符")
 
+    research_profile = _load_research_profile()
+    log.info(
+        "🧭 已载入研究画像：%s 条主线，活跃稿件 %s 个",
+        len(research_profile.get("strands", [])),
+        len(research_profile.get("active_drafts", [])),
+    )
+
     log.info("🔬 生成科研文献推荐...")
-    res_text = gen_research(date_str)
+    research_topic, research_papers = fetch_research_papers(date_str, limit=3, profile=research_profile)
+    res_text = gen_research(date_str, papers=research_papers, topic=research_topic, profile=research_profile)
     log.info(f"   完成，{len(res_text)} 字符")
+
+    log.info("🎓 生成导师带读栏目...")
+    mentor_text = gen_paper_mentor(
+        date_str,
+        focus_paper=research_papers[0] if research_papers else None,
+        topic=research_topic,
+        profile=research_profile,
+    )
+    log.info(f"   完成，{len(mentor_text)} 字符")
 
     log.info("📰 抓取每日全球新闻...")
     news_groups = gen_news(date_str)
@@ -1230,9 +1939,10 @@ def main():
     eng_html  = english_to_html(eng_text)
     bty_html  = beauty_to_html(bty_text)
     res_html  = research_to_html(res_text)
+    mentor_html = mentor_to_html(mentor_text)
     news_html = news_to_html(news_groups)
 
-    full_html = build_email_html(eng_html, bty_html, res_html, news_html, date_str, day_cn)
+    full_html = build_email_html(eng_html, bty_html, res_html, mentor_html, news_html, date_str, day_cn)
 
     subject = f"✨ 每日学习推送 · {date_str} {day_cn}"
 
@@ -1242,7 +1952,7 @@ def main():
 
     log.info("🏡 更新格雷西学习小屋网站...")
     date_key = now.strftime("%Y-%m-%d")
-    save_entry(date_key, date_str, day_cn, eng_html, bty_html, res_html, news_html)
+    save_entry(date_key, date_str, day_cn, eng_html, bty_html, res_html, mentor_html, news_html)
     site_path, count = rebuild_site()
     log.info(f"   网站已更新 ({count} 天记录) → {site_path}")
 

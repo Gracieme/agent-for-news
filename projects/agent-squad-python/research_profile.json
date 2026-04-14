@@ -1,0 +1,155 @@
+{
+  "summary": "用户当前的核心研究位于应用语言学、教育语言政策与批判话语研究的交叉处，重点关心语言如何在评估文件、课堂互动、教师制度处境与数字平台实践中分配权力、塑造身份，并进一步影响教学、学习与学术写作。",
+  "writing_goals": [
+    "把研究问题写得尖锐但不过度夸张",
+    "把理论框架压缩成服务论证的工具，而不是概念堆叠",
+    "把方法、编码与证据链写得可重复、可辩护",
+    "学会用期刊风格表达贡献、边界和局限"
+  ],
+  "active_drafts": [
+    {
+      "short_name": "AP Chinese / LAQ",
+      "title": "Assessing Chinese Through English: Metalinguistic Asymmetry and Epistemic Authority in AP Chinese Language and Culture Documentation",
+      "files": [
+        "LAQ_Final_v20_minor.docx",
+        "CILS_revision_paste_blocks.md",
+        "research_strengthening_plan.md",
+        "extracted_manuscript_pdf.txt"
+      ]
+    },
+    {
+      "short_name": "Beyond Deficit / Xiaohongshu",
+      "title": "Beyond Deficit: Asymmetric Functions of Chinese-English Translanguaging in a Digital Third Space on Xiaohongshu",
+      "files": [
+        "Beyond Deficit Asymmetric Functions of Chinese-English Translanguaging in a Digital Third Space on Xiaohongshu.docx",
+        "beyond_deficit_v14.docx"
+      ]
+    },
+    {
+      "short_name": "MICM / CSL Interaction",
+      "title": "Translanguaging as Mediational Architecture: Reconceptualizing Negotiation, Reflection, and Interactional Competence in CSL Peer Interaction",
+      "files": [
+        "MICM_Final_v12_LTR.docx",
+        "MICM_Final_v5.docx"
+      ]
+    },
+    {
+      "short_name": "Teacher Vulnerability / DLI",
+      "title": "\"You Need to Find the Guts\": Structural Vulnerability of Teachers in U.S. Charter Dual Language Immersion School Discourse",
+      "files": [
+        "You Need to Find the Guts.docx",
+        "Teacher_Voice_Final_Revised_v3.docx"
+      ]
+    },
+    {
+      "short_name": "EMI Translanguaging / Action Research",
+      "title": "Translanguaging as Transformative Practice: Identity Negotiation in a Chinese EMI Grammar Classroom through Action Research",
+      "files": [
+        "Translanguaging as Transformative Practice Identity Negotiation in a Chinese EMI Grammar Classroom through Action Research.docx",
+        "Translanguaging and Identity Negotiation in a Chinese EMI Grammar Classroom Insights from Teacher Action Research.docx"
+      ]
+    }
+  ],
+  "strands": [
+    {
+      "name": "AP Chinese assessment, metalinguistic asymmetry, and epistemic authority",
+      "query": "AP Chinese language assessment metalanguage epistemic authority washback critical language testing",
+      "anchors": [
+        "LAQ_Final_v20_minor.docx",
+        "CILS_revision_paste_blocks.md",
+        "research_strengthening_plan.md",
+        "extracted_manuscript_pdf.txt"
+      ],
+      "writing_focus": "问题界定、制度性论证、limitations、如何把文件证据写成有边界的批判性分析",
+      "why": "直接对应你当前 LAQ / CILS 系列稿件与 AP 中文文件研究",
+      "keywords": [
+        "AP Chinese",
+        "critical language testing",
+        "metalinguistic asymmetry",
+        "epistemic authority",
+        "washback",
+        "critical discourse analysis"
+      ]
+    },
+    {
+      "name": "Chinese-English translanguaging in digital third spaces and identity work",
+      "query": "Chinese English translanguaging digital third space Xiaohongshu identity sociolinguistics",
+      "anchors": [
+        "Beyond Deficit Asymmetric Functions of Chinese-English Translanguaging in a Digital Third Space on Xiaohongshu.docx",
+        "beyond_deficit_v14.docx"
+      ],
+      "writing_focus": "如何把功能分类、平台语境和身份论证压缩成清楚的论文贡献",
+      "why": "直接服务于 Xiaohongshu / translanguaging / digital sociolinguistics 这条稿件线",
+      "keywords": [
+        "translanguaging",
+        "digital third space",
+        "Xiaohongshu",
+        "identity",
+        "digital sociolinguistics",
+        "indexicality"
+      ]
+    },
+    {
+      "name": "CSL peer interaction, negotiation of meaning, LRE, and MICM",
+      "query": "Chinese as a second language peer interaction negotiation of meaning language related episodes translanguaging",
+      "anchors": [
+        "MICM_Final_v12_LTR.docx",
+        "MICM_Final_v5.docx"
+      ],
+      "writing_focus": "如何把机制性主张写得可检验，既提出模型又控制 exploratory 语气",
+      "why": "直接贴合 MICM、NoM、LRE、interactional competence 这条实证线",
+      "keywords": [
+        "CSL",
+        "peer interaction",
+        "negotiation of meaning",
+        "language-related episodes",
+        "translanguaging",
+        "interactional competence"
+      ]
+    },
+    {
+      "name": "Teacher vulnerability, dual language immersion, and institutional discourse",
+      "query": "teacher vulnerability dual language immersion charter school discourse autoethnography emotional labor",
+      "anchors": [
+        "You Need to Find the Guts.docx",
+        "Teacher_Voice_Final_Revised_v3.docx"
+      ],
+      "writing_focus": "如何把个人经历转成结构分析，避免只停留在叙事层面",
+      "why": "直接关联 DLI、charter school、teacher voice、emotional labor 与制度性脆弱性",
+      "keywords": [
+        "teacher vulnerability",
+        "dual language immersion",
+        "charter school",
+        "autoethnography",
+        "emotional labor",
+        "institutional discourse"
+      ]
+    },
+    {
+      "name": "Translanguaging, identity negotiation, and action research in EMI classrooms",
+      "query": "translanguaging identity negotiation EMI classroom action research teacher mediation",
+      "anchors": [
+        "Translanguaging as Transformative Practice Identity Negotiation in a Chinese EMI Grammar Classroom through Action Research.docx",
+        "Translanguaging and Identity Negotiation in a Chinese EMI Grammar Classroom Insights from Teacher Action Research.docx"
+      ],
+      "writing_focus": "如何把课堂发现写成可发表的论证，而不仅是经验总结",
+      "why": "直接对应 EMI grammar classroom、teacher action research、identity negotiation 这条线",
+      "keywords": [
+        "EMI",
+        "translanguaging",
+        "identity negotiation",
+        "action research",
+        "teacher mediation",
+        "critical pedagogy"
+      ]
+    }
+  ],
+  "source_snapshot": {
+    "reviewed_on": "2026-04-13",
+    "reviewed_from": [
+      "Downloads/学术/论文草稿",
+      "Downloads/学术/学术论文"
+    ],
+    "notes": "基于本地论文草稿、修订说明与已收藏学术文献人工整理，用于让每日论文推荐与导师带读优先贴合当前真实研究方向。"
+  }
+}
