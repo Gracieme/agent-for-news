@@ -535,6 +535,79 @@ def _reconstruct_abstract(inverted_index: dict) -> str:
     return " ".join(words)
 
 
+_TOP_RESEARCH_VENUE_KEYWORDS = [
+    "applied linguistics",
+    "tesol quarterly",
+    "modern language journal",
+    "language learning",
+    "language testing",
+    "system",
+    "journal of second language writing",
+    "studies in second language acquisition",
+    "international journal of bilingual education and bilingualism",
+    "linguistics and education",
+    "classroom discourse",
+    "language policy",
+    "teaching and teacher education",
+    "learning and instruction",
+    "english for specific purposes",
+]
+
+
+def _paper_venue_name(paper: dict) -> str:
+    return ((paper.get("primary_location") or {}).get("source") or {}).get("display_name", "—")
+
+
+def _is_top_research_venue(venue: str) -> bool:
+    venue_lower = venue.lower()
+    return any(keyword in venue_lower for keyword in _TOP_RESEARCH_VENUE_KEYWORDS)
+
+
+def _paper_quality_score(paper: dict) -> float:
+    cites = int(paper.get("cited_by_count", 0) or 0)
+    year = int(paper.get("publication_year") or datetime.now().year)
+    venue = _paper_venue_name(paper)
+    age = max(1, datetime.now().year - year + 1)
+    cite_density = cites / age
+
+    score = cites * 1.2 + cite_density * 6
+    if _is_top_research_venue(venue):
+        score += 80
+    if cites >= 200:
+        score += 40
+    elif cites >= 80:
+        score += 20
+    elif cites >= 30:
+        score += 10
+    if year >= datetime.now().year - 1 and cites < 5 and not _is_top_research_venue(venue):
+        score -= 12
+    return score
+
+
+def _paper_selection_reason(paper: dict) -> str:
+    cites = int(paper.get("cited_by_count", 0) or 0)
+    year = int(paper.get("publication_year") or datetime.now().year)
+    venue = _paper_venue_name(paper)
+    age = max(1, datetime.now().year - year + 1)
+    cite_density = cites / age
+
+    reasons = []
+    if cites >= 100:
+        reasons.append(f"高被引（{cites} 次）")
+    elif cites >= 30:
+        reasons.append(f"被引较高（{cites} 次）")
+    elif cite_density >= 8:
+        reasons.append(f"年均引用高（约 {cite_density:.1f} 次/年）")
+    if _is_top_research_venue(venue):
+        reasons.append(f"期刊较强（{venue}）")
+    if not reasons:
+        if cites >= 10:
+            reasons.append(f"有一定引用基础（{cites} 次）")
+        else:
+            reasons.append("相关性强，但学术影响力仍在观察")
+    return " + ".join(reasons)
+
+
 def _paper_to_text(paper: dict, n: int, relevance: str) -> str:
     authors = ", ".join(
         a["author"]["display_name"]
@@ -546,10 +619,11 @@ def _paper_to_text(paper: dict, n: int, relevance: str) -> str:
     title    = paper.get("title", "")
     year     = paper.get("publication_year", "")
     cites    = paper.get("cited_by_count", 0)
-    venue    = ((paper.get("primary_location") or {}).get("source") or {}).get("display_name", "—")
+    venue    = _paper_venue_name(paper)
     doi      = paper.get("doi", "")
     abstract = _reconstruct_abstract(paper.get("abstract_inverted_index") or {})
     abstract_short = (abstract[:400] + "…") if len(abstract) > 400 else abstract or "摘要不可用"
+    selection_reason = _paper_selection_reason(paper)
 
     if doi:
         link_url  = doi if doi.startswith("http") else f"https://doi.org/{doi}"
@@ -568,6 +642,7 @@ def _paper_to_text(paper: dict, n: int, relevance: str) -> str:
         f"📰 期刊：{venue}\n"
         f"📅 年份：{year}\n"
         f"📊 引用量：{cites} 次\n"
+        f"⭐ 入选理由：{selection_reason}\n"
         f"📝 摘要：{abstract_short}\n"
         f"🔗 与本研究的关联性：{relevance}\n"
         f"🆔 DOI：{link_text}|{link_url}\n"
@@ -594,10 +669,34 @@ def fetch_research_papers(today: str, limit: int = 3, profile: Optional[dict] = 
     log.info("   OpenAlex 搜索: %s | %s (第 %s 页)", topic.get("name", "研究主线"), query, page)
 
     try:
-        papers = _openalex_search(query, limit=limit, page=page)
+        candidates = _openalex_search(query, limit=max(limit * 4, 12), page=page)
     except Exception as ex:
         log.warning(f"   OpenAlex 请求失败: {ex}")
-        papers = []
+        candidates = []
+
+    ranked = sorted(candidates, key=_paper_quality_score, reverse=True)
+    preferred = []
+    fallback = []
+    for paper in ranked:
+        cites = int(paper.get("cited_by_count", 0) or 0)
+        venue = _paper_venue_name(paper)
+        year = int(paper.get("publication_year") or datetime.now().year)
+        age = max(1, datetime.now().year - year + 1)
+        cite_density = cites / age
+        if cites >= 15 or cite_density >= 5 or _is_top_research_venue(venue):
+            preferred.append(paper)
+        else:
+            fallback.append(paper)
+
+    papers = (preferred if len(preferred) >= limit else ranked)[:limit]
+    if papers:
+        log.info(
+            "   选文优先级: %s",
+            " | ".join(
+                f"{_paper_venue_name(p)} / {int(p.get('cited_by_count', 0) or 0)} cites"
+                for p in papers
+            ),
+        )
     return topic, papers
 
 
@@ -1419,6 +1518,7 @@ def research_to_html(text: str) -> str:
         "📰": ("#00838f", "期刊"),
         "📅": ("#e65100", "年份"),
         "📊": ("#2e7d32", "引用量"),
+        "⭐": ("#f9a825", "入选理由"),
         "📝": ("#4a148c", "摘要"),
         "🔗": ("#6a1b9a", "关联性"),
         "🆔": ("#37474f", "DOI"),
