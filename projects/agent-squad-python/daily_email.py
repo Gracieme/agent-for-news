@@ -989,6 +989,66 @@ def _paper_link_parts(paper: dict) -> tuple[str, str]:
     return "Google Scholar 搜索", f"https://scholar.google.com/scholar?q={q}"
 
 
+def _mentor_focus_header_lines(
+    authors: str,
+    year: str,
+    title: str,
+    venue: str,
+    link_text: str,
+    link_url: str,
+    paper_type: str,
+) -> list[str]:
+    return [
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "🎓 导师带读",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        f"📄 焦点论文：{authors}（{year}）. {title}",
+        f"📰 发表信息：{venue}",
+        f"🔗 论文入口：{link_text}|{link_url}",
+        f"📚 论文类型：{paper_type}",
+    ]
+
+
+def _inject_mentor_focus_metadata(
+    text: str,
+    *,
+    authors: str,
+    year: str,
+    title: str,
+    venue: str,
+    link_text: str,
+    link_url: str,
+    paper_type: str,
+) -> str:
+    """Force the mentor section to display the exact selected focus paper metadata."""
+    header_lines = _mentor_focus_header_lines(authors, year, title, venue, link_text, link_url, paper_type)
+    if not text.strip():
+        return "\n".join(header_lines)
+
+    skip_prefixes = (
+        "📄 焦点论文：",
+        "📰 发表信息：",
+        "🔗 论文入口：",
+        "📚 论文类型：",
+    )
+    body_lines = []
+    for raw in text.splitlines():
+        s = raw.strip()
+        if s == "🎓 导师带读":
+            continue
+        if s.startswith(skip_prefixes):
+            continue
+        body_lines.append(raw)
+
+    while body_lines and (
+        not body_lines[0].strip()
+        or all(ch in "━─═-" for ch in body_lines[0].strip())
+    ):
+        body_lines.pop(0)
+
+    return "\n".join(header_lines + body_lines)
+
+
 def _infer_paper_type(title: str, abstract: str) -> tuple[str, list[str], str]:
     text = f"{title} {abstract}".lower()
 
@@ -1085,10 +1145,20 @@ def gen_paper_mentor(
     )
 
     try:
-        return collect(MENTOR_SYSTEM, prompt, max_tokens=1800).strip()
+        mentor_text = collect(MENTOR_SYSTEM, prompt, max_tokens=1800).strip()
+        return _inject_mentor_focus_metadata(
+            mentor_text,
+            authors=authors,
+            year=str(year),
+            title=title,
+            venue=venue,
+            link_text=link_text,
+            link_url=link_url,
+            paper_type=paper_type,
+        )
     except Exception as ex:
         log.warning(f"   导师带读生成失败: {ex}")
-        return (
+        fallback_text = (
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             "🎓 导师带读\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -1118,6 +1188,16 @@ def gen_paper_mentor(
             "1. 用 3 句英文写出这篇论文的“问题—方法—贡献”摘要。\n"
             "2. 检查每句是否都在推进论点，而不是重复背景信息。\n"
             "3. 今天先写短句、写清楚，比写得华丽更重要。\n"
+        )
+        return _inject_mentor_focus_metadata(
+            fallback_text,
+            authors=authors,
+            year=str(year),
+            title=title,
+            venue=venue,
+            link_text=link_text,
+            link_url=link_url,
+            paper_type=paper_type,
         )
 
 
