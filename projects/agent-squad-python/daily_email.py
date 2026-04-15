@@ -265,6 +265,45 @@ GENERIC_RESEARCH_QUERIES = [
 def _exploration_research_topics() -> list[dict]:
     return [
         {
+            "name": "Broad scan: sociolinguistics, bilingualism, and identity",
+            "query": "sociolinguistics bilingualism multilingualism identity discourse",
+            "fallback_queries": [
+                "bilingualism identity sociolinguistics",
+                "multilingualism discourse identity language",
+                "language and identity bilingual education",
+            ],
+            "anchors": [],
+            "writing_focus": "看概念怎么收束，如何把 identity / multilingualism 写得既大又不散",
+            "why": "把你的应用语言学根基向社会语言学、身份与双语研究自然延展",
+            "keywords": ["sociolinguistics", "bilingualism", "multilingualism", "identity", "discourse"],
+        },
+        {
+            "name": "Broad scan: language policy, ideology, and critical discourse",
+            "query": "language policy ideology discourse critical multilingual education",
+            "fallback_queries": [
+                "language policy ideology discourse",
+                "critical discourse multilingual education",
+                "linguistic ideology education policy",
+            ],
+            "anchors": [],
+            "writing_focus": "看制度、话语、意识形态怎样被写成有证据链的论证",
+            "why": "覆盖你从考试、公平、制度走向更大社会语言学问题的那一条线",
+            "keywords": ["language policy", "ideology", "critical discourse", "multilingual education"],
+        },
+        {
+            "name": "Broad scan: translanguaging, digital discourse, and multilingual practice",
+            "query": "translanguaging digital discourse multilingual practice sociolinguistics",
+            "fallback_queries": [
+                "digital discourse multilingual practice translanguaging",
+                "social media multilingual discourse identity",
+                "translanguaging digital communication sociolinguistics",
+            ],
+            "anchors": [],
+            "writing_focus": "看新议题怎样写得不浮，不把数字平台写成概念堆叠",
+            "why": "保留你对平台、数字语言实践与社会语言学转向的兴趣",
+            "keywords": ["translanguaging", "digital discourse", "multilingual practice", "sociolinguistics"],
+        },
+        {
             "name": "Broad scan: language assessment, fairness, and validity",
             "query": "language assessment fairness validity washback critical language testing",
             "fallback_queries": [
@@ -276,19 +315,6 @@ def _exploration_research_topics() -> list[dict]:
             "writing_focus": "看问题意识、construct界定、fairness/validity怎么写得稳",
             "why": "保留你在评估、公平、制度批判这条大线上的广度，不只盯某一篇稿子",
             "keywords": ["language assessment", "fairness", "validity", "washback", "critical language testing"],
-        },
-        {
-            "name": "Broad scan: bilingualism, translanguaging, and identity",
-            "query": "translanguaging bilingual education identity multilingualism applied linguistics",
-            "fallback_queries": [
-                "translanguaging identity multilingual education",
-                "bilingual education identity applied linguistics",
-                "multilingualism translanguaging sociolinguistics",
-            ],
-            "anchors": [],
-            "writing_focus": "看理论定位、核心概念怎么收束，不让identity/translanguaging写散",
-            "why": "覆盖你在双语教育、身份与translanguaging上的更大兴趣面",
-            "keywords": ["translanguaging", "bilingual education", "identity", "multilingualism"],
         },
         {
             "name": "Broad scan: classroom interaction, mediation, and participation",
@@ -304,19 +330,6 @@ def _exploration_research_topics() -> list[dict]:
             "keywords": ["classroom interaction", "mediation", "participation", "peer interaction"],
         },
         {
-            "name": "Broad scan: teacher emotion, labor, and professional identity",
-            "query": "teacher emotion emotional labor professional identity language education",
-            "fallback_queries": [
-                "teacher emotional labor bilingual education",
-                "teacher identity language policy education",
-                "teacher vulnerability education discourse",
-            ],
-            "anchors": [],
-            "writing_focus": "看叙事如何被升格成结构分析，而不是只停在经验感受",
-            "why": "覆盖你关于教师脆弱性、制度话语与情感劳动的更宽研究兴趣",
-            "keywords": ["teacher emotion", "emotional labor", "professional identity", "teacher vulnerability"],
-        },
-        {
             "name": "Broad scan: academic writing, feedback, and revision",
             "query": "academic writing feedback revision second language writing",
             "fallback_queries": [
@@ -330,17 +343,17 @@ def _exploration_research_topics() -> list[dict]:
             "keywords": ["academic writing", "feedback", "revision", "second language writing"],
         },
         {
-            "name": "Broad scan: digital language practices, AI, and multilingual communication",
-            "query": "digital language practices AI multilingual communication translanguaging",
+            "name": "Broad scan: teacher identity, institutional discourse, and emotion",
+            "query": "teacher identity institutional discourse emotional labor language education",
             "fallback_queries": [
-                "digital multilingual communication translanguaging",
-                "AI language education multilingual communication",
-                "social media multilingual discourse identity",
+                "teacher emotional labor bilingual education",
+                "teacher identity language policy education",
+                "teacher vulnerability education discourse",
             ],
             "anchors": [],
-            "writing_focus": "看新议题如何写得不浮、不概念堆叠",
-            "why": "保留你对数字平台、AI与语言实践这条扩展面向的探索空间",
-            "keywords": ["digital", "AI", "multilingual communication", "translanguaging"],
+            "writing_focus": "看叙事如何被升格成结构分析，而不是只停在经验感受",
+            "why": "你不排斥教育心理或教师情感，但它们更适合作为边线而不是主航道",
+            "keywords": ["teacher identity", "institutional discourse", "emotional labor", "teacher vulnerability"],
         },
     ]
 
@@ -622,6 +635,7 @@ def _reconstruct_abstract(inverted_index: dict) -> str:
 
 _TOP_RESEARCH_VENUE_KEYWORDS = [
     "applied linguistics",
+    "applied linguistics review",
     "tesol quarterly",
     "modern language journal",
     "language learning",
@@ -632,10 +646,28 @@ _TOP_RESEARCH_VENUE_KEYWORDS = [
     "international journal of bilingual education and bilingualism",
     "linguistics and education",
     "classroom discourse",
+    "journal of sociolinguistics",
+    "language in society",
     "language policy",
+    "multilingua",
+    "journal of language, identity & education",
+    "journal of multilingual and multicultural development",
+    "international journal of the sociology of language",
+    "discourse & society",
+    "journal of pragmatics",
     "teaching and teacher education",
     "learning and instruction",
     "english for specific purposes",
+]
+
+_LOW_PRIORITY_VENUE_KEYWORDS = [
+    "educational psychology review",
+    "journal of educational psychology",
+    "british journal of educational psychology",
+    "educational technology research and development",
+    "computers & education",
+    "internet and higher education",
+    "learning environments research",
 ]
 
 
@@ -691,6 +723,15 @@ def _paper_selection_reason(paper: dict) -> str:
         else:
             reasons.append("相关性强，但学术影响力仍在观察")
     return " + ".join(reasons)
+
+
+def _paper_domain_penalty(paper: dict, topic: Optional[dict]) -> float:
+    venue = _paper_venue_name(paper).lower()
+    if any(keyword in venue for keyword in _LOW_PRIORITY_VENUE_KEYWORDS):
+        topic_score = _paper_topic_relevance_score(paper, topic)
+        if topic_score < 28:
+            return 28.0
+    return 0.0
 
 
 def _paper_topic_relevance_score(paper: dict, topic: Optional[dict]) -> float:
@@ -837,7 +878,7 @@ def fetch_research_papers(today: str, limit: int = 3, profile: Optional[dict] = 
 
     ranked = sorted(
         candidates,
-        key=lambda paper: _paper_quality_score(paper) + _paper_topic_relevance_score(paper, topic),
+        key=lambda paper: _paper_quality_score(paper) + _paper_topic_relevance_score(paper, topic) - _paper_domain_penalty(paper, topic),
         reverse=True,
     )
     preferred = []
@@ -1035,6 +1076,7 @@ def gen_paper_mentor(
         f"基于标题与摘要预判论文类型：{paper_type}\n"
         f"建议优先学习维度：{' / '.join(suggested_axes)}\n"
         f"判断说明：{paper_type_note}\n\n"
+        "焦点论文必须就是我上面给你的这一篇，不允许换成别的论文，不允许改写成你更熟悉的文章。\n"
         "请把这篇论文当成与用户当前稿件对话的一篇样本来带读，优先讲清它对用户现有写作最有帮助的地方。"
         "请优先用第一年博士生能听懂的白话表达，再补学术判断。"
         "如果用了术语，第一次出现时要立刻解释。\n"
