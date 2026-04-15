@@ -62,6 +62,11 @@
       ],
       "writing_focus": "问题界定、制度性论证、limitations、如何把文件证据写成有边界的批判性分析",
       "why": "直接对应你当前 LAQ / CILS 系列稿件与 AP 中文文件研究",
+      "fallback_queries": [
+        "Chinese language assessment washback critical language testing",
+        "language assessment fairness validity washback",
+        "assessment literacy language classroom"
+      ],
       "keywords": [
         "AP Chinese",
         "critical language testing",
@@ -80,6 +85,11 @@
       ],
       "writing_focus": "如何把功能分类、平台语境和身份论证压缩成清楚的论文贡献",
       "why": "直接服务于 Xiaohongshu / translanguaging / digital sociolinguistics 这条稿件线",
+      "fallback_queries": [
+        "translanguaging digital identity bilingual education",
+        "multilingual social media identity translanguaging",
+        "translanguaging digital literacies multilingual"
+      ],
       "keywords": [
         "translanguaging",
         "digital third space",
@@ -98,6 +108,11 @@
       ],
       "writing_focus": "如何把机制性主张写得可检验，既提出模型又控制 exploratory 语气",
       "why": "直接贴合 MICM、NoM、LRE、interactional competence 这条实证线",
+      "fallback_queries": [
+        "Chinese as a second language peer interaction translanguaging",
+        "language-related episodes negotiation of meaning peer interaction",
+        "interactional competence translanguaging classroom"
+      ],
       "keywords": [
         "CSL",
         "peer interaction",
@@ -116,6 +131,11 @@
       ],
       "writing_focus": "如何把个人经历转成结构分析，避免只停留在叙事层面",
       "why": "直接关联 DLI、charter school、teacher voice、emotional labor 与制度性脆弱性",
+      "fallback_queries": [
+        "teacher vulnerability bilingual education emotional labor",
+        "dual language immersion teacher identity policy",
+        "teacher emotional labor institutional discourse education"
+      ],
       "keywords": [
         "teacher vulnerability",
         "dual language immersion",
@@ -134,6 +154,11 @@
       ],
       "writing_focus": "如何把课堂发现写成可发表的论证，而不仅是经验总结",
       "why": "直接对应 EMI grammar classroom、teacher action research、identity negotiation 这条线",
+      "fallback_queries": [
+        "EMI translanguaging identity negotiation action research",
+        "English medium instruction translanguaging classroom identity",
+        "translanguaging teacher action research EMI"
+      ],
       "keywords": [
         "EMI",
         "translanguaging",

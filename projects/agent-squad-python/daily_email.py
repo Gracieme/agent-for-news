@@ -262,6 +262,89 @@ GENERIC_RESEARCH_QUERIES = [
 ]
 
 
+def _exploration_research_topics() -> list[dict]:
+    return [
+        {
+            "name": "Broad scan: language assessment, fairness, and validity",
+            "query": "language assessment fairness validity washback critical language testing",
+            "fallback_queries": [
+                "language assessment fairness validity",
+                "critical language testing washback",
+                "assessment literacy language classroom",
+            ],
+            "anchors": [],
+            "writing_focus": "看问题意识、construct界定、fairness/validity怎么写得稳",
+            "why": "保留你在评估、公平、制度批判这条大线上的广度，不只盯某一篇稿子",
+            "keywords": ["language assessment", "fairness", "validity", "washback", "critical language testing"],
+        },
+        {
+            "name": "Broad scan: bilingualism, translanguaging, and identity",
+            "query": "translanguaging bilingual education identity multilingualism applied linguistics",
+            "fallback_queries": [
+                "translanguaging identity multilingual education",
+                "bilingual education identity applied linguistics",
+                "multilingualism translanguaging sociolinguistics",
+            ],
+            "anchors": [],
+            "writing_focus": "看理论定位、核心概念怎么收束，不让identity/translanguaging写散",
+            "why": "覆盖你在双语教育、身份与translanguaging上的更大兴趣面",
+            "keywords": ["translanguaging", "bilingual education", "identity", "multilingualism"],
+        },
+        {
+            "name": "Broad scan: classroom interaction, mediation, and participation",
+            "query": "classroom interaction mediation participation peer talk sociocultural theory",
+            "fallback_queries": [
+                "peer interaction sociocultural theory classroom discourse",
+                "language-related episodes negotiation of meaning classroom interaction",
+                "interactional competence classroom discourse",
+            ],
+            "anchors": [],
+            "writing_focus": "看interaction数据怎么被写成机制，而不是零散例子",
+            "why": "保留你对课堂互动、参与、社会文化中介的广义关注",
+            "keywords": ["classroom interaction", "mediation", "participation", "peer interaction"],
+        },
+        {
+            "name": "Broad scan: teacher emotion, labor, and professional identity",
+            "query": "teacher emotion emotional labor professional identity language education",
+            "fallback_queries": [
+                "teacher emotional labor bilingual education",
+                "teacher identity language policy education",
+                "teacher vulnerability education discourse",
+            ],
+            "anchors": [],
+            "writing_focus": "看叙事如何被升格成结构分析，而不是只停在经验感受",
+            "why": "覆盖你关于教师脆弱性、制度话语与情感劳动的更宽研究兴趣",
+            "keywords": ["teacher emotion", "emotional labor", "professional identity", "teacher vulnerability"],
+        },
+        {
+            "name": "Broad scan: academic writing, feedback, and revision",
+            "query": "academic writing feedback revision second language writing",
+            "fallback_queries": [
+                "written corrective feedback second language writing",
+                "peer feedback revision academic writing",
+                "genre writing instruction EAP",
+            ],
+            "anchors": [],
+            "writing_focus": "看好论文怎样压缩贡献、组织文献综述、写discussion",
+            "why": "你不仅在研究内容上广，也在持续学习更好的论文写法",
+            "keywords": ["academic writing", "feedback", "revision", "second language writing"],
+        },
+        {
+            "name": "Broad scan: digital language practices, AI, and multilingual communication",
+            "query": "digital language practices AI multilingual communication translanguaging",
+            "fallback_queries": [
+                "digital multilingual communication translanguaging",
+                "AI language education multilingual communication",
+                "social media multilingual discourse identity",
+            ],
+            "anchors": [],
+            "writing_focus": "看新议题如何写得不浮、不概念堆叠",
+            "why": "保留你对数字平台、AI与语言实践这条扩展面向的探索空间",
+            "keywords": ["digital", "AI", "multilingual communication", "translanguaging"],
+        },
+    ]
+
+
 def _default_research_profile() -> dict:
     return {
         "summary": "用户关注应用语言学中的语言权力、课堂互动、教师制度处境与学术写作。",
@@ -274,6 +357,7 @@ def _default_research_profile() -> dict:
             {
                 "name": "Applied linguistics fallback topic",
                 "query": query,
+                "fallback_queries": [query],
                 "anchors": [],
                 "writing_focus": "研究问题、方法与贡献表达",
                 "why": "未读取到个性化研究画像时的通用后备主题",
@@ -317,6 +401,7 @@ def _load_research_profile() -> dict:
                 valid_strands.append({
                     "name": name or query,
                     "query": query,
+                    "fallback_queries": item.get("fallback_queries") if isinstance(item.get("fallback_queries"), list) else [],
                     "anchors": item.get("anchors") if isinstance(item.get("anchors"), list) else [],
                     "writing_focus": str(item.get("writing_focus") or "研究问题、方法与贡献表达").strip(),
                     "why": str(item.get("why") or "").strip(),
@@ -608,6 +693,24 @@ def _paper_selection_reason(paper: dict) -> str:
     return " + ".join(reasons)
 
 
+def _paper_topic_relevance_score(paper: dict, topic: Optional[dict]) -> float:
+    if not isinstance(topic, dict):
+        return 0.0
+    keywords = [str(item).strip().lower() for item in topic.get("keywords", []) if str(item).strip()]
+    if not keywords:
+        return 0.0
+    text = " ".join([
+        str(paper.get("title") or ""),
+        _paper_venue_name(paper),
+        _reconstruct_abstract(paper.get("abstract_inverted_index") or {}),
+    ]).lower()
+    score = 0.0
+    for keyword in keywords:
+        if keyword and keyword in text:
+            score += 18 if " " in keyword else 8
+    return score
+
+
 def _paper_to_text(paper: dict, n: int, relevance: str) -> str:
     authors = ", ".join(
         a["author"]["display_name"]
@@ -651,16 +754,61 @@ def _paper_to_text(paper: dict, n: int, relevance: str) -> str:
 
 def _select_research_topic(today: str, profile: Optional[dict] = None) -> tuple[dict, int]:
     profile = profile or _load_research_profile()
-    topics = [item for item in profile.get("strands", []) if isinstance(item, dict) and item.get("query")]
-    if not topics:
-        topics = _default_research_profile()["strands"]
-
     target_dt = _parse_target_date(today)
     day_of_year = target_dt.timetuple().tm_yday
-    topic_idx = day_of_year % len(topics)
-    topic = topics[topic_idx]
-    page = (day_of_year // len(topics)) + 1
+    core_topics = [item for item in profile.get("strands", []) if isinstance(item, dict) and item.get("query")]
+    broad_topics = _exploration_research_topics()
+
+    if not core_topics:
+        topics = _default_research_profile()["strands"]
+        topic_idx = day_of_year % len(topics)
+        topic = topics[topic_idx]
+        page = (day_of_year // len(topics)) + 1
+        return topic, page
+
+    if day_of_year % 4 == 0:
+        topics = broad_topics
+        topic_idx = (day_of_year // 4) % len(topics)
+        topic = topics[topic_idx]
+        page = (day_of_year // max(1, len(topics) * 4)) + 1
+    else:
+        topics = core_topics
+        topic_idx = day_of_year % len(topics)
+        topic = topics[topic_idx]
+        page = (day_of_year // len(topics)) + 1
     return topic, page
+
+
+def _topic_query_candidates(topic: Optional[dict], page: int) -> list[tuple[str, int]]:
+    if not isinstance(topic, dict):
+        return []
+    raw_queries = []
+    primary = str(topic.get("query") or "").strip()
+    if primary:
+        raw_queries.append(primary)
+    for fallback in topic.get("fallback_queries", []):
+        fallback_text = str(fallback).strip()
+        if fallback_text:
+            raw_queries.append(fallback_text)
+    keywords = [str(item).strip() for item in topic.get("keywords", []) if str(item).strip()]
+    if len(keywords) >= 4:
+        raw_queries.append(" ".join(keywords[:4]))
+    if len(keywords) >= 3:
+        raw_queries.append(" ".join(keywords[:3]))
+
+    candidates = []
+    seen = set()
+    for idx, query in enumerate(raw_queries):
+        page_options = [page] if idx == 0 else [1]
+        if idx == 0 and page != 1:
+            page_options.append(1)
+        for q_page in page_options:
+            key = (query.lower(), q_page)
+            if key in seen:
+                continue
+            seen.add(key)
+            candidates.append((query, q_page))
+    return candidates
 
 
 def fetch_research_papers(today: str, limit: int = 3, profile: Optional[dict] = None) -> tuple[dict, list]:
@@ -668,13 +816,30 @@ def fetch_research_papers(today: str, limit: int = 3, profile: Optional[dict] = 
     query = topic.get("query", "")
     log.info("   OpenAlex 搜索: %s | %s (第 %s 页)", topic.get("name", "研究主线"), query, page)
 
-    try:
-        candidates = _openalex_search(query, limit=max(limit * 4, 12), page=page)
-    except Exception as ex:
-        log.warning(f"   OpenAlex 请求失败: {ex}")
-        candidates = []
+    candidates = []
+    seen_candidates = set()
+    for query_variant, query_page in _topic_query_candidates(topic, page):
+        try:
+            batch = _openalex_search(query_variant, limit=max(limit * 4, 12), page=query_page)
+        except Exception as ex:
+            log.warning("   OpenAlex 请求失败: %s | %s", query_variant, ex)
+            continue
+        if batch:
+            log.info("   OpenAlex 备选检索命中: %s (第 %s 页) -> %s 条", query_variant, query_page, len(batch))
+        for paper in batch:
+            key = (str(paper.get("doi") or paper.get("title") or "")).strip().lower()
+            if not key or key in seen_candidates:
+                continue
+            seen_candidates.add(key)
+            candidates.append(paper)
+        if len(candidates) >= max(limit * 4, 12):
+            break
 
-    ranked = sorted(candidates, key=_paper_quality_score, reverse=True)
+    ranked = sorted(
+        candidates,
+        key=lambda paper: _paper_quality_score(paper) + _paper_topic_relevance_score(paper, topic),
+        reverse=True,
+    )
     preferred = []
     fallback = []
     for paper in ranked:
@@ -683,7 +848,10 @@ def fetch_research_papers(today: str, limit: int = 3, profile: Optional[dict] = 
         year = int(paper.get("publication_year") or datetime.now().year)
         age = max(1, datetime.now().year - year + 1)
         cite_density = cites / age
-        if cites >= 15 or cite_density >= 5 or _is_top_research_venue(venue):
+        topic_relevance = _paper_topic_relevance_score(paper, topic)
+        if topic_relevance >= 18 and (cites >= 10 or cite_density >= 4 or _is_top_research_venue(venue)):
+            preferred.append(paper)
+        elif topic_relevance >= 30:
             preferred.append(paper)
         else:
             fallback.append(paper)
