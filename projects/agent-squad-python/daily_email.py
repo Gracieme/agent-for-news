@@ -1508,7 +1508,8 @@ def _entry_is_fresh(entry: dict, today_dt: datetime) -> bool:
         pub_dt = datetime(*published[:6])
     except Exception:
         return True
-    return pub_dt >= (today_dt - timedelta(days=_NEWS_MAX_ARTICLE_AGE_DAYS))
+    compare_today = today_dt.replace(tzinfo=None) if getattr(today_dt, "tzinfo", None) else today_dt
+    return pub_dt >= (compare_today - timedelta(days=_NEWS_MAX_ARTICLE_AGE_DAYS))
 
 
 def _ordered_feeds_for_day(region: str, feeds: list, seen_state: dict, today_dt: datetime) -> list:
