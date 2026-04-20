@@ -5,7 +5,12 @@ name: Daily Email + Update Site
 on:
   schedule:
     - cron: '0 8 * * *'    # 夏令时 MDT（UTC-6）凌晨 2:00；冬季 MST 改为 '0 9 * * *'
-  workflow_dispatch:         # 允许手动触发
+  workflow_dispatch:
+    inputs:
+      target_date:
+        description: 'Optional override date in YYYY-MM-DD for backfill runs'
+        required: false
+        type: string
 
 permissions:
   contents: write            # 允许 workflow 把生成的网站文件 commit 回仓库
@@ -33,6 +38,8 @@ jobs:
           SENDGRID_API_KEY:  ${{ secrets.SENDGRID_API_KEY }}
           EMAIL_FROM:        ${{ secrets.EMAIL_FROM }}
           EMAIL_TO:          ${{ secrets.TO_EMAIL }}
+          APP_TIMEZONE:      America/Denver
+          TARGET_DATE:       ${{ inputs.target_date }}
         run: python daily_email.py
         working-directory: projects/agent-squad-python
 

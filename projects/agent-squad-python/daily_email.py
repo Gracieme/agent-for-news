@@ -15,6 +15,7 @@ import unicodedata
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 import sendgrid
 from sendgrid.helpers.mail import Mail
@@ -51,6 +52,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 client = anthropic.Anthropic()
+APP_TIMEZONE = ZoneInfo(os.environ.get("APP_TIMEZONE", "America/Denver"))
 
 # ══════════════════════════════════════════════════════════════════
 #  SYSTEM PROMPTS
@@ -476,6 +478,19 @@ def _profile_prompt_context(profile: dict, topic: Optional[dict] = None) -> str:
         lines.append(f"长期写作目标：{'；'.join(writing_goals[:4])}")
     return "\n".join(line for line in lines if line.strip())
 
+
+def _app_now() -> datetime:
+    override = (os.environ.get("TARGET_DATE") or "").strip()
+    if override:
+        for fmt in ("%Y-%m-%d", "%Y年%m月%d日"):
+            try:
+                parsed = datetime.strptime(override, fmt)
+                return parsed.replace(tzinfo=APP_TIMEZONE, hour=12, minute=0, second=0, microsecond=0)
+            except Exception:
+                pass
+        log.warning("TARGET_DATE=%r 无法解析，改用 %s 当前时间", override, APP_TIMEZONE)
+    return datetime.now(APP_TIMEZONE)
+
 def _collect_once(system: str, user_prompt: str, max_tokens: int = 3500, **kwargs) -> tuple[str, str]:
     """Call Claude API once and return (text, stop_reason)."""
     for attempt in range(5):
@@ -618,7 +633,7 @@ def gen_english(today: str, weekday: int) -> str:
         "冬天与室内（cozy season, winter blues, hot drinks）",
         "新年计划与目标（New Year resolutions, fresh starts, goal-setting）",
     ]
-    now = datetime.now()
+    now = _app_now()
     day_of_year = now.timetuple().tm_yday
     topic = topics[day_of_year % len(topics)]
     return collect_complete(
@@ -682,7 +697,7 @@ def gen_beauty(today: str, weekday: int, day_cn: str) -> str:
         "护肤小贴士·眼霜与颈霜：什么时候开始用、怎么用",
         "护肤小贴士·生活习惯对肌肤的影响（睡眠、饮食、运动）",
     ]
-    now = datetime.now()
+    now = _app_now()
     day_of_year = now.timetuple().tm_yday
     subtopic = subtopics[day_of_year % len(subtopics)]
     return collect_complete(
@@ -771,9 +786,10 @@ def _is_top_research_venue(venue: str) -> bool:
 
 def _paper_quality_score(paper: dict) -> float:
     cites = int(paper.get("cited_by_count", 0) or 0)
-    year = int(paper.get("publication_year") or datetime.now().year)
+    current_year = _app_now().year
+    year = int(paper.get("publication_year") or current_year)
     venue = _paper_venue_name(paper)
-    age = max(1, datetime.now().year - year + 1)
+    age = max(1, current_year - year + 1)
     cite_density = cites / age
 
     score = cites * 1.2 + cite_density * 6
@@ -785,16 +801,17 @@ def _paper_quality_score(paper: dict) -> float:
         score += 20
     elif cites >= 30:
         score += 10
-    if year >= datetime.now().year - 1 and cites < 5 and not _is_top_research_venue(venue):
+    if year >= current_year - 1 and cites < 5 and not _is_top_research_venue(venue):
         score -= 12
     return score
 
 
 def _paper_selection_reason(paper: dict) -> str:
     cites = int(paper.get("cited_by_count", 0) or 0)
-    year = int(paper.get("publication_year") or datetime.now().year)
+    current_year = _app_now().year
+    year = int(paper.get("publication_year") or current_year)
     venue = _paper_venue_name(paper)
-    age = max(1, datetime.now().year - year + 1)
+    age = max(1, current_year - year + 1)
     cite_density = cites / age
 
     reasons = []
@@ -975,8 +992,9 @@ def fetch_research_papers(today: str, limit: int = 3, profile: Optional[dict] = 
     for paper in ranked:
         cites = int(paper.get("cited_by_count", 0) or 0)
         venue = _paper_venue_name(paper)
-        year = int(paper.get("publication_year") or datetime.now().year)
-        age = max(1, datetime.now().year - year + 1)
+        current_year = _app_now().year
+        year = int(paper.get("publication_year") or current_year)
+        age = max(1, current_year - year + 1)
         cite_density = cites / age
         topic_relevance = _paper_topic_relevance_score(paper, topic)
         if topic_relevance >= 18 and (cites >= 10 or cite_density >= 4 or _is_top_research_venue(venue)):
@@ -1389,10 +1407,10 @@ def _parse_target_date(value: str) -> datetime:
     """Accept either 2026-04-13 or 2026年04月13日; fall back to now."""
     for fmt in ("%Y-%m-%d", "%Y年%m月%d日"):
         try:
-            return datetime.strptime(value, fmt)
+            return datetime.strptime(value, fmt).replace(tzinfo=APP_TIMEZONE)
         except Exception:
             pass
-    return datetime.now()
+    return _app_now()
 
 
 def _cutoff_str(days: int, today_dt: datetime) -> str:
@@ -2457,7 +2475,7 @@ def send_email(subject: str, html_body: str):
 # ══════════════════════════════════════════════════════════════════
 
 def main():
-    now      = datetime.now()
+    now      = _app_now()
     date_str = now.strftime("%Y年%m月%d日")
     day_cn   = {
         "Monday":"周一","Tuesday":"周二","Wednesday":"周三",
