@@ -476,21 +476,22 @@ def _profile_prompt_context(profile: dict, topic: Optional[dict] = None) -> str:
         lines.append(f"长期写作目标：{'；'.join(writing_goals[:4])}")
     return "\n".join(line for line in lines if line.strip())
 
-def collect(system: str, user_prompt: str, max_tokens: int = 3500, **kwargs) -> str:
-    """Call Claude API and return full streamed text."""
+def _collect_once(system: str, user_prompt: str, max_tokens: int = 3500, **kwargs) -> tuple[str, str]:
+    """Call Claude API once and return (text, stop_reason)."""
     for attempt in range(5):
         try:
-            parts = []
-            with client.messages.stream(
+            message = client.messages.create(
                 model="claude-opus-4-6",
                 max_tokens=max_tokens,
                 system=system,
                 messages=[{"role": "user", "content": user_prompt}],
                 **kwargs,
-            ) as stream:
-                for chunk in stream.text_stream:
-                    parts.append(chunk)
-            return "".join(parts)
+            )
+            text_parts = []
+            for block in getattr(message, "content", []) or []:
+                if getattr(block, "type", None) == "text":
+                    text_parts.append(block.text)
+            return "".join(text_parts), (getattr(message, "stop_reason", None) or "")
         except anthropic.APIStatusError as e:
             if e.status_code in (500, 529) and attempt < 4:
                 wait = 30 * (attempt + 1)
@@ -498,6 +499,76 @@ def collect(system: str, user_prompt: str, max_tokens: int = 3500, **kwargs) -> 
                 time.sleep(wait)
             else:
                 raise
+
+
+def collect(system: str, user_prompt: str, max_tokens: int = 3500, **kwargs) -> str:
+    text, _ = _collect_once(system, user_prompt, max_tokens=max_tokens, **kwargs)
+    return text
+
+
+def _looks_truncated(text: str) -> bool:
+    s = (text or "").rstrip()
+    if not s:
+        return True
+    bad_endings = ("：", "（", "(", "【", "[", "—", "-", "、", "|", "/")
+    if s.endswith(bad_endings):
+        return True
+    last_line = s.splitlines()[-1].strip()
+    if re.search(r"[\u4e00-\u9fffA-Za-z0-9]$", last_line) and not re.search(r"[。！？….!?）)]$", last_line):
+        if len(last_line) < 60:
+            return True
+    return False
+
+
+def collect_complete(
+    system: str,
+    user_prompt: str,
+    *,
+    max_tokens: int = 3500,
+    required_markers: Optional[list[str]] = None,
+    max_attempts: int = 3,
+    growth_factor: float = 1.45,
+    **kwargs,
+) -> str:
+    """
+    Retry Claude generation when output is cut off by token limits or misses
+    required late-stage sections.
+    """
+    token_budget = max_tokens
+    required_markers = required_markers or []
+
+    for attempt in range(1, max_attempts + 1):
+        text, stop_reason = _collect_once(system, user_prompt, max_tokens=token_budget, **kwargs)
+        stripped = text.strip()
+        missing_markers = [marker for marker in required_markers if marker not in stripped]
+        looks_cut = _looks_truncated(stripped)
+        hit_cap = stop_reason == "max_tokens"
+
+        if not missing_markers and not looks_cut and not hit_cap:
+            return stripped
+
+        if attempt == max_attempts:
+            log.warning(
+                "Claude output may be incomplete after %s attempts (stop_reason=%s, missing=%s, tail=%r)",
+                attempt,
+                stop_reason,
+                missing_markers,
+                stripped[-80:],
+            )
+            return stripped
+
+        next_budget = int(token_budget * growth_factor)
+        log.warning(
+            "Claude output looked incomplete (attempt %s/%s, stop_reason=%s, missing=%s). Retrying with max_tokens=%s",
+            attempt,
+            max_attempts,
+            stop_reason,
+            missing_markers,
+            next_budget,
+        )
+        token_budget = next_budget
+
+    return stripped
 
 
 def gen_english(today: str, weekday: int) -> str:
@@ -550,12 +621,13 @@ def gen_english(today: str, weekday: int) -> str:
     now = datetime.now()
     day_of_year = now.timetuple().tm_yday
     topic = topics[day_of_year % len(topics)]
-    return collect(
+    return collect_complete(
         ENGLISH_SYSTEM,
         f"今天是{today}。请围绕主题「{topic}」，"
         "为我提供今日的10条地道英语表达学习内容，优先选真实日常在用的口语、俚语和惯用语，"
         "按照规定格式输出完整内容。",
         max_tokens=2800,
+        required_markers=["【中文翻译】", "【本日表达列表】"],
     )
 
 
@@ -613,12 +685,13 @@ def gen_beauty(today: str, weekday: int, day_cn: str) -> str:
     now = datetime.now()
     day_of_year = now.timetuple().tm_yday
     subtopic = subtopics[day_of_year % len(subtopics)]
-    return collect(
+    return collect_complete(
         BEAUTY_SYSTEM,
         f"今天是{today}（{day_cn}）。请围绕今日细化主题「{subtopic}」，"
         "为我提供针对棱橄榄皮+圆脸的个性化美妆内容推送。"
         "记住：必须在【今日品牌与产品推荐】区块列出3-5款具体产品，包含品牌、产品名、色号和参考价位。",
-        max_tokens=2200,
+        max_tokens=3200,
+        required_markers=["💡 针对你的肤质/脸型：", "🎨 今日品牌与产品推荐："],
     )
 
 
@@ -965,14 +1038,15 @@ def gen_research(
         title    = paper.get("title", "")
         abstract = _reconstruct_abstract(paper.get("abstract_inverted_index") or {})
         try:
-            relevance = collect(
+            relevance = collect_complete(
                 RESEARCH_RELEVANCE_SYSTEM,
                 (
                     f"{_profile_prompt_context(profile, topic)}\n\n"
                     f"标题：{title}\n"
                     f"摘要：{abstract[:600]}"
                 ),
-                max_tokens=200,
+                max_tokens=320,
+                max_attempts=2,
             ).strip()
         except Exception:
             relevance = "（关联性分析暂不可用）"
@@ -1161,7 +1235,12 @@ def gen_paper_mentor(
     )
 
     try:
-        mentor_text = collect(MENTOR_SYSTEM, prompt, max_tokens=1800).strip()
+        mentor_text = collect_complete(
+            MENTOR_SYSTEM,
+            prompt,
+            max_tokens=3200,
+            required_markers=["❓ 导师追问你：", "✍️ 今日练习"],
+        ).strip()
         return _inject_mentor_focus_metadata(
             mentor_text,
             authors=authors,
