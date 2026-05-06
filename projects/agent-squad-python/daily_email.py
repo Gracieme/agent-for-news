@@ -791,6 +791,9 @@ _LOW_PRIORITY_VENUE_KEYWORDS = [
 _PAPER_SEEN_FILE = Path(__file__).parent / "seen_papers.json"
 _PAPER_DEDUP_DAYS = 45
 _PAPER_HISTORY_RETENTION_DAYS = 180
+_UMASS_DISCOVERY_URL = "https://search.ebscohost.com/login.aspx"
+_UMASS_ILL_URL = "https://illiad.library.umass.edu/illiad/"
+_UMASS_PROXY_PREFIX = "https://silk.library.umass.edu/login?url="
 
 
 def _paper_venue_name(paper: dict) -> str:
@@ -918,6 +921,7 @@ def _paper_to_text(paper: dict, n: int, relevance: str) -> str:
         f"📝 摘要：{abstract_short}\n"
         f"🔗 与本研究的关联性：{relevance}\n"
         f"🆔 DOI：{link_text}|{link_url}\n"
+        f"🏛 UMass 获取全文：{_umass_access_text(paper)}\n"
     )
 
 
@@ -1309,6 +1313,43 @@ def _paper_link_parts(paper: dict) -> tuple[str, str]:
     return "Google Scholar 搜索", f"https://scholar.google.com/scholar?q={q}"
 
 
+def _umass_discovery_url(paper: dict) -> str:
+    doi = _normalize_paper_doi(paper.get("doi", ""))
+    query = doi or str(paper.get("title") or "").strip()
+    params = {
+        "direct": "true",
+        "site": "eds-live",
+        "scope": "site",
+        "type": "0",
+        "custid": "umaah",
+        "groupid": "main",
+        "profile": "edsnewui",
+        "authtype": "ip,guest",
+        "bquery": query,
+    }
+    return f"{_UMASS_DISCOVERY_URL}?{urllib.parse.urlencode(params)}"
+
+
+def _umass_proxy_doi_url(paper: dict) -> str:
+    doi = str(paper.get("doi") or "").strip()
+    if not doi:
+        return ""
+    doi_url = doi if doi.startswith("http") else f"https://doi.org/{doi}"
+    return f"{_UMASS_PROXY_PREFIX}{urllib.parse.quote(doi_url, safe='')}"
+
+
+def _umass_access_text(paper: dict) -> str:
+    links = []
+    proxy_url = _umass_proxy_doi_url(paper)
+    if proxy_url:
+        links.append(("UMass DOI入口", proxy_url))
+    links.extend([
+        ("Discovery检索", _umass_discovery_url(paper)),
+        ("ILL兜底", _UMASS_ILL_URL),
+    ])
+    return "；".join(f"{label}|{url}" for label, url in links)
+
+
 def _mentor_focus_header_lines(
     authors: str,
     year: str,
@@ -1317,16 +1358,20 @@ def _mentor_focus_header_lines(
     link_text: str,
     link_url: str,
     paper_type: str,
+    umass_access_text: str = "",
 ) -> list[str]:
-    return [
+    lines = [
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
         "🎓 导师带读",
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
         f"📄 焦点论文：{authors}（{year}）. {title}",
         f"📰 发表信息：{venue}",
         f"🔗 论文入口：{link_text}|{link_url}",
-        f"📚 论文类型：{paper_type}",
     ]
+    if umass_access_text:
+        lines.append(f"🏛 UMass 获取全文：{umass_access_text}")
+    lines.append(f"📚 论文类型：{paper_type}")
+    return lines
 
 
 def _inject_mentor_focus_metadata(
@@ -1339,9 +1384,19 @@ def _inject_mentor_focus_metadata(
     link_text: str,
     link_url: str,
     paper_type: str,
+    umass_access_text: str = "",
 ) -> str:
     """Force the mentor section to display the exact selected focus paper metadata."""
-    header_lines = _mentor_focus_header_lines(authors, year, title, venue, link_text, link_url, paper_type)
+    header_lines = _mentor_focus_header_lines(
+        authors,
+        year,
+        title,
+        venue,
+        link_text,
+        link_url,
+        paper_type,
+        umass_access_text,
+    )
     if not text.strip():
         return "\n".join(header_lines)
 
@@ -1349,6 +1404,7 @@ def _inject_mentor_focus_metadata(
         "📄 焦点论文：",
         "📰 发表信息：",
         "🔗 论文入口：",
+        "🏛 UMass 获取全文：",
         "📚 论文类型：",
     )
     body_lines = []
@@ -1442,6 +1498,7 @@ def gen_paper_mentor(
     venue = ((focus_paper.get("primary_location") or {}).get("source") or {}).get("display_name", "—")
     abstract = _paper_abstract(focus_paper)
     link_text, link_url = _paper_link_parts(focus_paper)
+    umass_access_text = _umass_access_text(focus_paper)
     paper_type, suggested_axes, paper_type_note = _infer_paper_type(title, abstract)
 
     prompt = (
@@ -1480,6 +1537,7 @@ def gen_paper_mentor(
             link_text=link_text,
             link_url=link_url,
             paper_type=paper_type,
+            umass_access_text=umass_access_text,
         )
     except Exception as ex:
         log.warning(f"   导师带读生成失败: {ex}")
@@ -1536,6 +1594,7 @@ def gen_paper_mentor(
             link_text=link_text,
             link_url=link_url,
             paper_type=paper_type,
+            umass_access_text=umass_access_text,
         )
 
 
@@ -1915,6 +1974,22 @@ def md(s: str) -> str:
     return s
 
 
+def pipe_links_html(raw: str) -> str:
+    """Render semicolon-separated label|url pairs as compact email-safe links."""
+    chunks = [part.strip() for part in re.split(r"[；;]", str(raw or "")) if part.strip()]
+    rendered = []
+    for chunk in chunks:
+        if "|" not in chunk:
+            rendered.append(md(chunk))
+            continue
+        label, url = chunk.split("|", 1)
+        rendered.append(
+            f'<a href="{e(url.strip())}" target="_blank" rel="noopener" '
+            f'style="color:#1a73e8;text-decoration:none">{e(label.strip())}</a>'
+        )
+    return ' <span style="color:#90a4ae">·</span> '.join(rendered)
+
+
 def english_to_html(text: str) -> str:
     parts = []
     current_section = None
@@ -2151,6 +2226,7 @@ def research_to_html(text: str) -> str:
         "📝": ("#4a148c", "摘要"),
         "🔗": ("#6a1b9a", "关联性"),
         "🆔": ("#37474f", "DOI"),
+        "🏛": ("#5d4037", "UMass 获取全文"),
     }
 
     in_card = False
@@ -2203,19 +2279,21 @@ def research_to_html(text: str) -> str:
                 if icon == "📖":
                     current_title = body_part
 
-                # DOI field → render as clickable link (format: "link_text|link_url")
-                if icon == "🆔":
+                # Link fields → render clickable links (format: "link_text|link_url")
+                if icon in ("🆔", "🏛"):
                     raw = body_part.strip()
                     if "|" in raw:
-                        link_text, link_url = raw.split("|", 1)
-                    else:
+                        links_html = pipe_links_html(raw)
+                    elif icon == "🆔":
                         q = urllib.parse.quote(current_title or raw)
                         link_text = "Google Scholar 搜索"
                         link_url  = f"https://scholar.google.com/scholar?q={q}"
-                    links_html = (
-                        f'<a href="{e(link_url)}" target="_blank" '
-                        f'style="color:#1a73e8;text-decoration:none">🔍 {e(link_text)}</a>'
-                    )
+                        links_html = (
+                            f'<a href="{e(link_url)}" target="_blank" rel="noopener" '
+                            f'style="color:#1a73e8;text-decoration:none">🔍 {e(link_text)}</a>'
+                        )
+                    else:
+                        links_html = md(raw)
                     parts.append(
                         f'<table width="100%" cellpadding="0" cellspacing="0" '
                         f'style="margin:7px 0;border-collapse:collapse"><tr>'
@@ -2275,6 +2353,7 @@ def mentor_to_html(text: str) -> str:
         "📄": "#5d4037",
         "📰": "#00695c",
         "🔗": "#1565c0",
+        "🏛": "#5d4037",
         "📚": "#3949ab",
         "🗣": "#2e7d32",
         "🏅": "#ad1457",
@@ -2328,18 +2407,20 @@ def mentor_to_html(text: str) -> str:
                 key_part = s[:key_end]
                 body_part = s[key_end:].strip()
 
-                if icon == "🔗":
+                if icon in ("🔗", "🏛"):
                     raw_link = body_part.strip()
                     if "|" in raw_link:
-                        link_text, link_url = raw_link.split("|", 1)
-                    else:
+                        body_html = pipe_links_html(raw_link)
+                    elif icon == "🔗":
                         q = urllib.parse.quote(raw_link)
                         link_text = "Google Scholar 搜索"
                         link_url = f"https://scholar.google.com/scholar?q={q}"
-                    body_html = (
-                        f'<a href="{e(link_url)}" target="_blank" rel="noopener" '
-                        f'style="color:#1a73e8;text-decoration:none">🔍 {e(link_text)}</a>'
-                    )
+                        body_html = (
+                            f'<a href="{e(link_url)}" target="_blank" rel="noopener" '
+                            f'style="color:#1a73e8;text-decoration:none">🔍 {e(link_text)}</a>'
+                        )
+                    else:
+                        body_html = md(raw_link)
                 elif not body_part:
                     body_html = ""
                 else:
