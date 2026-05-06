@@ -1,5 +1,5 @@
 {
-  "summary": "用户当前的核心研究位于应用语言学、教育语言政策与批判话语研究的交叉处，重点关心语言如何在评估文件、课堂互动、教师制度处境与数字平台实践中分配权力、塑造身份，并进一步影响教学、学习与学术写作。",
+  "summary": "用户当前的核心研究位于应用语言学、教育语言政策与批判话语研究的交叉处，重点关心语言如何在评估文件、课堂互动、教师制度处境与数字平台实践和社交平台多模态话语中分配权力、塑造身份，并进一步影响教学、学习与学术写作。",
   "writing_goals": [
     "把研究问题写得尖锐但不过度夸张",
     "把理论框架压缩成服务论证的工具，而不是概念堆叠",
@@ -78,17 +78,18 @@
     },
     {
       "name": "Chinese-English translanguaging in digital third spaces and identity work",
-      "query": "Chinese English translanguaging digital third space Xiaohongshu identity sociolinguistics",
+      "query": "Chinese English translanguaging multimodal digital third space Xiaohongshu identity sociolinguistics",
       "anchors": [
         "Beyond Deficit Asymmetric Functions of Chinese-English Translanguaging in a Digital Third Space on Xiaohongshu.docx",
         "beyond_deficit_v14.docx"
       ],
-      "writing_focus": "如何把功能分类、平台语境和身份论证压缩成清楚的论文贡献",
+      "writing_focus": "如何把功能分类、平台语境、多模态资源和身份论证压缩成清楚的论文贡献",
       "why": "直接服务于 Xiaohongshu / translanguaging / digital sociolinguistics 这条稿件线",
       "fallback_queries": [
-        "translanguaging digital identity bilingual education",
-        "multilingual social media identity translanguaging",
-        "translanguaging digital literacies multilingual"
+        "translanguaging digital identity multimodal social media",
+        "multilingual social media identity translanguaging multimodal discourse",
+        "translanguaging digital literacies multimodal platform affordances",
+        "Xiaohongshu RedNote multimodal discourse translanguaging identity"
       ],
       "keywords": [
         "translanguaging",
@@ -96,7 +97,40 @@
         "Xiaohongshu",
         "identity",
         "digital sociolinguistics",
-        "indexicality"
+        "indexicality",
+        "multimodal discourse analysis",
+        "platform affordances",
+        "visual discourse"
+      ]
+    },
+    {
+      "name": "Social platform multimodal discourse, affordances, and identity work",
+      "query": "social media multimodal discourse platform affordances identity language ideology Xiaohongshu RedNote",
+      "anchors": [
+        "Beyond Deficit Asymmetric Functions of Chinese-English Translanguaging in a Digital Third Space on Xiaohongshu.docx",
+        "beyond_deficit_v14.docx",
+        "Lu (2026)_It's not like I m gonna go to China one day.pdf"
+      ],
+      "writing_focus": "如何把图片、视频、文字、评论区和平台可供性写成可分析的数据链，而不只是把社交平台当作背景",
+      "why": "用户明确补充对社交平台多模态分析感兴趣，尤其关注数字平台上语言、图像、身份与互动如何共同建构意义",
+      "fallback_queries": [
+        "social media multimodal discourse analysis language identity",
+        "platform affordances multimodal interaction social media language learning",
+        "Xiaohongshu RedNote multimodal discourse identity language ideology",
+        "multimodal discourse analysis social media translanguaging",
+        "digital ethnography multimodal social media multilingual identity"
+      ],
+      "keywords": [
+        "social media",
+        "multimodal discourse analysis",
+        "platform affordances",
+        "Xiaohongshu",
+        "RedNote",
+        "digital ethnography",
+        "visual discourse",
+        "commentary practices",
+        "identity work",
+        "language ideology"
       ]
     },
     {
@@ -175,6 +209,6 @@
       "Downloads/学术/论文草稿",
       "Downloads/学术/学术论文"
     ],
-    "notes": "基于本地论文草稿、修订说明与已收藏学术文献人工整理，用于让每日论文推荐与导师带读优先贴合当前真实研究方向。"
+    "notes": "基于本地论文草稿、修订说明与已收藏学术文献人工整理，用于让每日论文推荐与导师带读优先贴合当前真实研究方向。 2026-05-06 updated: added user interest in social platform multimodal discourse analysis."
   }
 }
