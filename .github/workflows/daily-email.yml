@@ -51,5 +51,8 @@ jobs:
           if [ -f projects/agent-squad-python/seen_news.json ]; then
             git add projects/agent-squad-python/seen_news.json
           fi
+          if [ -f projects/agent-squad-python/seen_papers.json ]; then
+            git add projects/agent-squad-python/seen_papers.json
+          fi
           git diff --cached --quiet || git commit -m "🏡 Daily update: $(date -u +'%Y-%m-%d')"
           git push
