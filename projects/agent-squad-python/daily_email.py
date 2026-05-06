@@ -384,6 +384,7 @@ def _default_research_profile() -> dict:
             "学会从摘要里拆解作者如何搭建论证",
         ],
         "active_drafts": [],
+        "priority_papers": [],
         "strands": [
             {
                 "name": "Applied linguistics fallback topic",
@@ -419,6 +420,12 @@ def _load_research_profile() -> dict:
         active_drafts = raw.get("active_drafts")
         if isinstance(active_drafts, list):
             profile["active_drafts"] = [item for item in active_drafts if isinstance(item, dict)]
+        priority_papers = raw.get("priority_papers")
+        if isinstance(priority_papers, list):
+            profile["priority_papers"] = [
+                item for item in priority_papers
+                if isinstance(item, dict) and str(item.get("title") or "").strip()
+            ]
         strands = raw.get("strands")
         valid_strands = []
         if isinstance(strands, list):
@@ -737,6 +744,13 @@ def _reconstruct_abstract(inverted_index: dict) -> str:
     return " ".join(words)
 
 
+def _paper_abstract(paper: dict) -> str:
+    abstract = str(paper.get("abstract") or paper.get("abstract_text") or "").strip()
+    if abstract:
+        return abstract
+    return _reconstruct_abstract(paper.get("abstract_inverted_index") or {})
+
+
 _TOP_RESEARCH_VENUE_KEYWORDS = [
     "applied linguistics",
     "applied linguistics review",
@@ -797,6 +811,8 @@ def _paper_quality_score(paper: dict) -> float:
     cite_density = cites / age
 
     score = cites * 1.2 + cite_density * 6
+    if paper.get("_profile_seed"):
+        score += 45
     if _is_top_research_venue(venue):
         score += 80
     if cites >= 200:
@@ -819,6 +835,8 @@ def _paper_selection_reason(paper: dict) -> str:
     cite_density = cites / age
 
     reasons = []
+    if paper.get("_profile_seed"):
+        reasons.append("用户收藏的导师种子文献")
     if cites >= 100:
         reasons.append(f"高被引（{cites} 次）")
     elif cites >= 30:
@@ -853,7 +871,7 @@ def _paper_topic_relevance_score(paper: dict, topic: Optional[dict]) -> float:
     text = " ".join([
         str(paper.get("title") or ""),
         _paper_venue_name(paper),
-        _reconstruct_abstract(paper.get("abstract_inverted_index") or {}),
+        _paper_abstract(paper),
     ]).lower()
     score = 0.0
     for keyword in keywords:
@@ -875,7 +893,7 @@ def _paper_to_text(paper: dict, n: int, relevance: str) -> str:
     cites    = paper.get("cited_by_count", 0)
     venue    = _paper_venue_name(paper)
     doi      = paper.get("doi", "")
-    abstract = _reconstruct_abstract(paper.get("abstract_inverted_index") or {})
+    abstract = _paper_abstract(paper)
     abstract_short = (abstract[:400] + "…") if len(abstract) > 400 else abstract or "摘要不可用"
     selection_reason = _paper_selection_reason(paper)
 
@@ -1058,6 +1076,56 @@ def _paper_seen_recently(paper: dict, seen_records: dict, today_dt: datetime) ->
     )
 
 
+def _priority_paper_matches_topic(item: dict, topic: Optional[dict]) -> bool:
+    if not isinstance(topic, dict):
+        return True
+
+    topic_name = str(topic.get("name") or "").strip().lower()
+    explicit_strands = [str(v).strip().lower() for v in item.get("strands", []) if str(v).strip()]
+    if explicit_strands:
+        return topic_name in explicit_strands
+
+    topic_text = " ".join([
+        topic_name,
+        str(topic.get("query") or ""),
+        str(topic.get("writing_focus") or ""),
+        " ".join(str(v) for v in topic.get("keywords", [])),
+    ]).lower()
+    tags = [str(v).strip().lower() for v in item.get("tags", []) if str(v).strip()]
+    return any(tag and tag in topic_text for tag in tags)
+
+
+def _priority_paper_to_candidate(item: dict) -> dict:
+    authors = item.get("authors", [])
+    if isinstance(authors, str):
+        authors = [authors]
+    return {
+        "title": str(item.get("title") or "").strip(),
+        "authorships": [
+            {"author": {"display_name": str(author).strip()}}
+            for author in authors
+            if str(author).strip()
+        ],
+        "publication_year": item.get("year") or item.get("publication_year") or "",
+        "abstract": str(item.get("abstract") or "").strip(),
+        "cited_by_count": int(item.get("cited_by_count", 0) or 0),
+        "primary_location": {"source": {"display_name": str(item.get("venue") or "用户收藏文献").strip()}},
+        "doi": str(item.get("doi") or "").strip(),
+        "_profile_seed": True,
+    }
+
+
+def _priority_paper_candidates(profile: dict, topic: Optional[dict]) -> list[dict]:
+    candidates = []
+    for item in profile.get("priority_papers", []):
+        if not isinstance(item, dict) or not _priority_paper_matches_topic(item, topic):
+            continue
+        paper = _priority_paper_to_candidate(item)
+        if paper.get("title"):
+            candidates.append(paper)
+    return candidates
+
+
 def _save_seen_papers(papers: list[dict], today_dt: datetime) -> None:
     state = _load_seen_papers(today_dt)
     records = state.get("papers", {})
@@ -1088,6 +1156,14 @@ def fetch_research_papers(today: str, limit: int = 3, profile: Optional[dict] = 
 
     candidates = []
     seen_candidates = set()
+    for paper in _priority_paper_candidates(profile or {}, topic):
+        key = (str(paper.get("doi") or paper.get("title") or "")).strip().lower()
+        if key and key not in seen_candidates:
+            seen_candidates.add(key)
+            candidates.append(paper)
+    if candidates:
+        log.info("   已加入导师种子文献候选: %s 篇", len(candidates))
+
     for query_variant, query_page in _topic_query_candidates(topic, page):
         try:
             batch = _openalex_search(query_variant, limit=max(limit * 10, 30), page=query_page)
@@ -1190,7 +1266,7 @@ def gen_research(
 
     for i, paper in enumerate(papers, 1):
         title    = paper.get("title", "")
-        abstract = _reconstruct_abstract(paper.get("abstract_inverted_index") or {})
+        abstract = _paper_abstract(paper)
         try:
             relevance = collect_complete(
                 RESEARCH_RELEVANCE_SYSTEM,
@@ -1364,7 +1440,7 @@ def gen_paper_mentor(
     authors = _paper_authors_short(focus_paper)
     year = focus_paper.get("publication_year", "")
     venue = ((focus_paper.get("primary_location") or {}).get("source") or {}).get("display_name", "—")
-    abstract = _reconstruct_abstract(focus_paper.get("abstract_inverted_index") or {})
+    abstract = _paper_abstract(focus_paper)
     link_text, link_url = _paper_link_parts(focus_paper)
     paper_type, suggested_axes, paper_type_note = _infer_paper_type(title, abstract)
 

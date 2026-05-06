@@ -50,6 +50,55 @@
       ]
     }
   ],
+  "priority_papers": [
+    {
+      "title": "Translanguaging and the Transdisciplinary Framework for Language Teaching and Learning in a Multilingual World",
+      "authors": [
+        "Constant Leung",
+        "Guadalupe Valdés"
+      ],
+      "year": 2019,
+      "venue": "The Modern Language Journal, 103(2), 348-370",
+      "doi": "10.1111/modl.12568",
+      "source_file": "The Modern Language Journal - 2019 - LEUNG - Translanguaging and the Transdisciplinary Framework for Language Teaching and.pdf",
+      "strands": [
+        "Chinese-English translanguaging in digital third spaces and identity work",
+        "CSL peer interaction, negotiation of meaning, LRE, and MICM",
+        "Translanguaging, identity negotiation, and action research in EMI classrooms"
+      ],
+      "tags": [
+        "translanguaging",
+        "transdisciplinary framework",
+        "multilingual turn",
+        "monolingual paradigm",
+        "additional language education"
+      ],
+      "abstract": "Mentor seed note: This conceptual MLJ article situates translanguaging within the transdisciplinary framework for SLA and the multilingual turn in applied linguistics. It is especially useful for clarifying when translanguaging is a theory, a pedagogical stance, an analytical lens, or a classroom practice, and for asking what conceptual precision and empirical evidence are still needed across different instructional contexts.",
+      "why": "用户提供的本地 PDF；适合作为 translanguaging 理论框架和概念边界的导师带读种子文献。"
+    },
+    {
+      "title": "It's not like I'm gonna go to China one day: A raciolinguistic perspective on students' language ideologies in a U.S. Mandarin FLES program",
+      "authors": [
+        "Xinyue Lu"
+      ],
+      "year": 2026,
+      "venue": "The Modern Language Journal",
+      "doi": "10.1111/modl.70063",
+      "source_file": "Lu (2026)_It's not like I m gonna go to China one day.pdf",
+      "strands": [
+        "AP Chinese assessment, metalinguistic asymmetry, and epistemic authority"
+      ],
+      "tags": [
+        "Mandarin",
+        "Chinese language education",
+        "raciolinguistic perspective",
+        "language ideology",
+        "FLES"
+      ],
+      "abstract": "Mentor seed note: This recent MLJ article uses a raciolinguistic lens to examine how elementary students in a U.S. Mandarin FLES program make sense of Mandarin, foreignness, racialized legitimacy, and Asian sameness. It is useful for connecting Chinese language education to language ideology, racialized listening, and the question of whose Chinese is imagined as valuable or legitimate.",
+      "why": "用户明确指出这类文章可以加入导师带读；适合连接中文教育、语言意识形态与 raciolinguistic legitimacy。"
+    }
+  ],
   "strands": [
     {
       "name": "AP Chinese assessment, metalinguistic asymmetry, and epistemic authority",
@@ -81,7 +130,8 @@
       "query": "Chinese English translanguaging multimodal digital third space Xiaohongshu identity sociolinguistics",
       "anchors": [
         "Beyond Deficit Asymmetric Functions of Chinese-English Translanguaging in a Digital Third Space on Xiaohongshu.docx",
-        "beyond_deficit_v14.docx"
+        "beyond_deficit_v14.docx",
+        "The Modern Language Journal - 2019 - LEUNG - Translanguaging and the Transdisciplinary Framework for Language Teaching and.pdf"
       ],
       "writing_focus": "如何把功能分类、平台语境、多模态资源和身份论证压缩成清楚的论文贡献",
       "why": "直接服务于 Xiaohongshu / translanguaging / digital sociolinguistics 这条稿件线",
@@ -138,7 +188,8 @@
       "query": "Chinese as a second language peer interaction negotiation of meaning language related episodes translanguaging",
       "anchors": [
         "MICM_Final_v12_LTR.docx",
-        "MICM_Final_v5.docx"
+        "MICM_Final_v5.docx",
+        "The Modern Language Journal - 2019 - LEUNG - Translanguaging and the Transdisciplinary Framework for Language Teaching and.pdf"
       ],
       "writing_focus": "如何把机制性主张写得可检验，既提出模型又控制 exploratory 语气",
       "why": "直接贴合 MICM、NoM、LRE、interactional competence 这条实证线",
@@ -184,7 +235,8 @@
       "query": "translanguaging identity negotiation EMI classroom action research teacher mediation",
       "anchors": [
         "Translanguaging as Transformative Practice Identity Negotiation in a Chinese EMI Grammar Classroom through Action Research.docx",
-        "Translanguaging and Identity Negotiation in a Chinese EMI Grammar Classroom Insights from Teacher Action Research.docx"
+        "Translanguaging and Identity Negotiation in a Chinese EMI Grammar Classroom Insights from Teacher Action Research.docx",
+        "The Modern Language Journal - 2019 - LEUNG - Translanguaging and the Transdisciplinary Framework for Language Teaching and.pdf"
       ],
       "writing_focus": "如何把课堂发现写成可发表的论证，而不仅是经验总结",
       "why": "直接对应 EMI grammar classroom、teacher action research、identity negotiation 这条线",
@@ -209,6 +261,6 @@
       "Downloads/学术/论文草稿",
       "Downloads/学术/学术论文"
     ],
-    "notes": "基于本地论文草稿、修订说明与已收藏学术文献人工整理，用于让每日论文推荐与导师带读优先贴合当前真实研究方向。 2026-05-06 updated: added user interest in social platform multimodal discourse analysis."
+    "notes": "基于本地论文草稿、修订说明与已收藏学术文献人工整理，用于让每日论文推荐与导师带读优先贴合当前真实研究方向。 2026-05-06 updated: added user interest in social platform multimodal discourse analysis and added user-provided MLJ PDFs as mentor seed papers."
   }
 }
