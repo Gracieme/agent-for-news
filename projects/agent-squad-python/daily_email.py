@@ -2749,7 +2749,32 @@ def build_mentor_email_html(
 #  EMAIL SENDING
 # ══════════════════════════════════════════════════════════════════
 
-def send_email(subject: str, html_body: str):
+def _github_actions_warning(message: str) -> None:
+    safe_message = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+    print(f"::warning::{safe_message}", flush=True)
+
+
+def _http_status_from_exception(ex: Exception) -> Optional[int]:
+    for attr in ("status_code", "code"):
+        value = getattr(ex, attr, None)
+        if isinstance(value, int):
+            return value
+    response = getattr(ex, "response", None)
+    value = getattr(response, "status_code", None)
+    if isinstance(value, int):
+        return value
+    match = re.search(r"\b([45]\d\d)\b", str(ex))
+    return int(match.group(1)) if match else None
+
+
+def send_email(subject: str, html_body: str) -> bool:
+    missing = [name for name in ("SENDGRID_API_KEY", "EMAIL_FROM", "EMAIL_TO") if not os.environ.get(name)]
+    if missing:
+        detail = f"邮件未发送：缺少环境变量 {', '.join(missing)}。网站更新已继续。"
+        log.error("   %s", detail)
+        _github_actions_warning(detail)
+        return False
+
     api_key   = os.environ["SENDGRID_API_KEY"]
     from_addr = os.environ["EMAIL_FROM"]
     to_addr   = os.environ["EMAIL_TO"]
@@ -2761,7 +2786,19 @@ def send_email(subject: str, html_body: str):
         html_content=html_body,
     )
     sg = sendgrid.SendGridAPIClient(api_key=api_key)
-    sg.send(message)
+    try:
+        sg.send(message)
+        return True
+    except Exception as ex:
+        status = _http_status_from_exception(ex)
+        if status == 401:
+            detail = "SendGrid 401 Unauthorized：SENDGRID_API_KEY 已失效、被撤销，或没有 Mail Send 权限。"
+        else:
+            detail = f"{type(ex).__name__}: {ex}"
+        warning = f"邮件发送失败（{subject}）：{detail} 网站更新已继续。"
+        log.error("   %s", warning)
+        _github_actions_warning(warning)
+        return False
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -2826,18 +2863,22 @@ def main():
     subject = f"✨ 每日学习推送 · {date_str} {day_cn}"
     mentor_subject = f"🎓 导师带读 · {date_str} {day_cn}"
 
-    log.info(f"📨 发送邮件到 {os.environ.get('EMAIL_TO', '(未配置)')}...")
-    send_email(subject, full_html)
-    log.info("✅ 综合日报发送成功！")
-    send_email(mentor_subject, mentor_email_html)
-    log.info("✅ 导师带读专属邮件发送成功！")
-
     log.info("🏡 更新格雷西学习小屋网站...")
     date_key = now.strftime("%Y-%m-%d")
     save_entry(date_key, date_str, day_cn, eng_html, bty_html, res_html, mentor_html, news_html)
     _save_seen_papers(research_papers, now)
     site_path, count = rebuild_site()
     log.info(f"   网站已更新 ({count} 天记录) → {site_path}")
+
+    log.info(f"📨 发送邮件到 {os.environ.get('EMAIL_TO', '(未配置)')}...")
+    daily_sent = send_email(subject, full_html)
+    if daily_sent:
+        log.info("✅ 综合日报发送成功！")
+    mentor_sent = send_email(mentor_subject, mentor_email_html)
+    if mentor_sent:
+        log.info("✅ 导师带读专属邮件发送成功！")
+    if not (daily_sent and mentor_sent):
+        log.warning("⚠️ 至少一封邮件未发送；请更新 GitHub Actions 里的 SENDGRID_API_KEY。网站内容已正常保存。")
 
 
 if __name__ == "__main__":
