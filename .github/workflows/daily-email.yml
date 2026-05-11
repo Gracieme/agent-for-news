@@ -35,9 +35,10 @@ jobs:
       - name: Send daily email & build site
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          SENDGRID_API_KEY:  ${{ secrets.SENDGRID_API_KEY }}
           EMAIL_FROM:        ${{ secrets.EMAIL_FROM }}
           EMAIL_TO:          ${{ secrets.TO_EMAIL }}
+          SMTP_USER:         ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD:     ${{ secrets.SMTP_PASSWORD }}
           APP_TIMEZONE:      America/Denver
           TARGET_DATE:       ${{ inputs.target_date }}
         run: python daily_email.py

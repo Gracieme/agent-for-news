@@ -10,15 +10,14 @@ import html
 import json
 import time
 import logging
+import smtplib
 import urllib.parse
 import unicodedata
+from email.message import EmailMessage
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional
 from zoneinfo import ZoneInfo
-
-import sendgrid
-from sendgrid.helpers.mail import Mail
 
 import anthropic
 import sys
@@ -2754,47 +2753,35 @@ def _github_actions_warning(message: str) -> None:
     print(f"::warning::{safe_message}", flush=True)
 
 
-def _http_status_from_exception(ex: Exception) -> Optional[int]:
-    for attr in ("status_code", "code"):
-        value = getattr(ex, attr, None)
-        if isinstance(value, int):
-            return value
-    response = getattr(ex, "response", None)
-    value = getattr(response, "status_code", None)
-    if isinstance(value, int):
-        return value
-    match = re.search(r"\b([45]\d\d)\b", str(ex))
-    return int(match.group(1)) if match else None
-
-
 def send_email(subject: str, html_body: str) -> bool:
-    missing = [name for name in ("SENDGRID_API_KEY", "EMAIL_FROM", "EMAIL_TO") if not os.environ.get(name)]
+    missing = [name for name in ("SMTP_PASSWORD", "EMAIL_FROM", "EMAIL_TO") if not os.environ.get(name)]
     if missing:
         detail = f"邮件未发送：缺少环境变量 {', '.join(missing)}。网站更新已继续。"
         log.error("   %s", detail)
         _github_actions_warning(detail)
         return False
 
-    api_key   = os.environ["SENDGRID_API_KEY"]
-    from_addr = os.environ["EMAIL_FROM"]
-    to_addr   = os.environ["EMAIL_TO"]
+    from_addr = os.environ["EMAIL_FROM"].strip()
+    to_addr = os.environ["EMAIL_TO"].strip()
+    smtp_user = (os.environ.get("SMTP_USER") or from_addr).strip()
+    smtp_password = os.environ["SMTP_PASSWORD"]
+    smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com").strip()
+    smtp_port = int(os.environ.get("SMTP_PORT", "465"))
 
-    message = Mail(
-        from_email=(from_addr, "格雷西学习小屋"),
-        to_emails=to_addr,
-        subject=subject,
-        html_content=html_body,
-    )
-    sg = sendgrid.SendGridAPIClient(api_key=api_key)
+    message = EmailMessage()
+    message["From"] = f"格雷西学习小屋 <{from_addr}>"
+    message["To"] = to_addr
+    message["Subject"] = subject
+    message.set_content("这封邮件需要使用支持 HTML 的邮件客户端查看。")
+    message.add_alternative(html_body, subtype="html")
+
     try:
-        sg.send(message)
+        with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=30) as smtp:
+            smtp.login(smtp_user, smtp_password)
+            smtp.send_message(message)
         return True
     except Exception as ex:
-        status = _http_status_from_exception(ex)
-        if status == 401:
-            detail = "SendGrid 401 Unauthorized：SENDGRID_API_KEY 已失效、被撤销，或没有 Mail Send 权限。"
-        else:
-            detail = f"{type(ex).__name__}: {ex}"
+        detail = f"{type(ex).__name__}: {ex}"
         warning = f"邮件发送失败（{subject}）：{detail} 网站更新已继续。"
         log.error("   %s", warning)
         _github_actions_warning(warning)
@@ -2878,7 +2865,7 @@ def main():
     if mentor_sent:
         log.info("✅ 导师带读专属邮件发送成功！")
     if not (daily_sent and mentor_sent):
-        log.warning("⚠️ 至少一封邮件未发送；请更新 GitHub Actions 里的 SENDGRID_API_KEY。网站内容已正常保存。")
+        log.warning("⚠️ 至少一封邮件未发送；请检查 GitHub Actions 里的 SMTP_PASSWORD/SMTP_USER。网站内容已正常保存。")
 
 
 if __name__ == "__main__":
