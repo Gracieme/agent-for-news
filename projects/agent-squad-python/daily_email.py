@@ -23,7 +23,7 @@ from sendgrid.helpers.mail import Mail
 import anthropic
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
-from build_site import save_entry, rebuild as rebuild_site
+from build_site import DATA_DIR, save_entry, rebuild as rebuild_site
 
 # ══════════════════════════════════════════════════════════════════
 #  ENV LOADING
@@ -249,6 +249,18 @@ WEEKDAY_CN = {
 
 
 RESEARCH_PROFILE_FILE = Path(__file__).parent / "research_profile.json"
+
+FOCUS_RESEARCH_TERMS = [
+    term.strip().lower()
+    for term in os.environ.get(
+        "FOCUS_RESEARCH_TERMS",
+        "translanguaging,xiaohongshu,digital third space,digital discourse,multilingual practice",
+    ).split(",")
+    if term.strip()
+]
+
+FOCUS_RESEARCH_DAYS_PER_WEEK = int(os.environ.get("FOCUS_RESEARCH_DAYS_PER_WEEK", "6"))
+ALLOW_BROAD_RESEARCH_SCAN = os.environ.get("ALLOW_BROAD_RESEARCH_SCAN", "").strip().lower() in {"1", "true", "yes"}
 
 
 GENERIC_RESEARCH_QUERIES = [
@@ -774,6 +786,10 @@ _LOW_PRIORITY_VENUE_KEYWORDS = [
     "learning environments research",
 ]
 
+_PAPER_SEEN_FILE = Path(__file__).parent / "seen_papers.json"
+_PAPER_DEDUP_DAYS = 45
+_PAPER_HISTORY_RETENTION_DAYS = 180
+
 
 def _paper_venue_name(paper: dict) -> str:
     return ((paper.get("primary_location") or {}).get("source") or {}).get("display_name", "—")
@@ -840,22 +856,164 @@ def _paper_domain_penalty(paper: dict, topic: Optional[dict]) -> float:
     return 0.0
 
 
+def _topic_identity_text(topic: Optional[dict]) -> str:
+    if not isinstance(topic, dict):
+        return ""
+    return " ".join(
+        [
+            str(topic.get("name") or ""),
+            str(topic.get("query") or ""),
+            " ".join(str(item) for item in topic.get("keywords", []) if str(item).strip()),
+        ]
+    ).lower()
+
+
+def _is_focus_research_topic(topic: Optional[dict]) -> bool:
+    identity = _topic_identity_text(topic)
+    return bool(identity and any(term in identity for term in FOCUS_RESEARCH_TERMS))
+
+
+def _is_digital_focus_topic(topic: Optional[dict]) -> bool:
+    identity = _topic_identity_text(topic)
+    return bool(
+        identity
+        and any(
+            marker in identity
+            for marker in ("xiaohongshu", "digital", "social media", "online", "platform", "third space")
+        )
+    )
+
+
+def _paper_search_text(paper: dict) -> str:
+    return " ".join(
+        [
+            str(paper.get("title") or ""),
+            _paper_venue_name(paper),
+            _reconstruct_abstract(paper.get("abstract_inverted_index") or {}),
+        ]
+    ).lower()
+
+
+def _has_digital_platform_context(text: str) -> bool:
+    return any(
+        marker in text
+        for marker in (
+            "xiaohongshu",
+            "little red book",
+            "social media",
+            "online",
+            "platform",
+            "platforms",
+            "third space",
+            "internet",
+            "virtual communit",
+            "digital discourse",
+            "digital space",
+            "digital spaces",
+        )
+    )
+
+
+def _has_identity_or_multilingual_context(text: str) -> bool:
+    return any(
+        marker in text
+        for marker in (
+            "identity",
+            "identities",
+            "multilingual",
+            "bilingual",
+            "chinese",
+            "english",
+            "indexical",
+            "language practice",
+            "language practices",
+        )
+    )
+
+
 def _paper_topic_relevance_score(paper: dict, topic: Optional[dict]) -> float:
     if not isinstance(topic, dict):
         return 0.0
     keywords = [str(item).strip().lower() for item in topic.get("keywords", []) if str(item).strip()]
     if not keywords:
         return 0.0
-    text = " ".join([
-        str(paper.get("title") or ""),
-        _paper_venue_name(paper),
-        _reconstruct_abstract(paper.get("abstract_inverted_index") or {}),
-    ]).lower()
+    text = _paper_search_text(paper)
     score = 0.0
     for keyword in keywords:
         if keyword and keyword in text:
             score += 18 if " " in keyword else 8
+    query_terms = [
+        term
+        for term in re.split(r"\s+", str(topic.get("query") or "").lower())
+        if len(term) >= 5 and term not in {"and", "with", "through", "language", "languages"}
+    ]
+    for term in query_terms:
+        if term in text:
+            score += 5
+    if _is_focus_research_topic(topic):
+        has_translanguaging = any(term in text for term in ("translanguaging", "translingual", "code-switching", "codeswitching"))
+        has_digital_or_identity = any(
+            term in text
+            for term in (
+                "xiaohongshu",
+                "little red book",
+                "digital",
+                "social media",
+                "online",
+                "platform",
+                "third space",
+                "identity",
+                "multilingual",
+                "bilingual",
+                "indexical",
+            )
+        )
+        if has_translanguaging and has_digital_or_identity:
+            score += 36
+        elif has_translanguaging:
+            score += 18
+        elif has_digital_or_identity:
+            score += 10
+        if _is_digital_focus_topic(topic) and (
+            _has_digital_platform_context(text)
+            or ("digital" in text and _has_identity_or_multilingual_context(text))
+        ):
+            score += 24
     return score
+
+
+def _minimum_topic_relevance(topic: Optional[dict]) -> float:
+    if _is_digital_focus_topic(topic):
+        return 80.0
+    return 34.0 if _is_focus_research_topic(topic) else 18.0
+
+
+def _paper_is_topic_relevant(paper: dict, topic: Optional[dict]) -> bool:
+    if not isinstance(topic, dict):
+        return True
+    score = _paper_topic_relevance_score(paper, topic)
+    text = _paper_search_text(paper)
+    if _is_digital_focus_topic(topic):
+        has_translanguaging = any(term in text for term in ("translanguaging", "translingual", "code-switching", "codeswitching"))
+        has_platform_context = _has_digital_platform_context(text)
+        has_digital_identity_context = "digital" in text and _has_identity_or_multilingual_context(text)
+        return has_translanguaging and (has_platform_context or has_digital_identity_context) and score >= _minimum_topic_relevance(topic)
+    if score >= _minimum_topic_relevance(topic):
+        return True
+    if _is_focus_research_topic(topic):
+        return "translanguaging" in text and any(
+            marker in text for marker in ("digital", "social media", "identity", "multilingual", "bilingual", "xiaohongshu", "third space")
+        )
+    return False
+
+
+def _paper_rank_score(paper: dict, topic: Optional[dict]) -> float:
+    quality = _paper_quality_score(paper)
+    relevance = _paper_topic_relevance_score(paper, topic)
+    penalty = _paper_domain_penalty(paper, topic)
+    if _is_focus_research_topic(topic):
+        return relevance * 4.0 + quality * 0.35 - penalty
+    return quality + relevance - penalty
 
 
 def _paper_to_text(paper: dict, n: int, relevance: str) -> str:
@@ -905,6 +1063,8 @@ def _select_research_topic(today: str, profile: Optional[dict] = None) -> tuple[
     day_of_year = target_dt.timetuple().tm_yday
     core_topics = [item for item in profile.get("strands", []) if isinstance(item, dict) and item.get("query")]
     broad_topics = _exploration_research_topics()
+    focus_topics = [topic for topic in core_topics if _is_focus_research_topic(topic)]
+    non_focus_topics = [topic for topic in core_topics if not _is_focus_research_topic(topic)]
 
     if not core_topics:
         topics = _default_research_profile()["strands"]
@@ -913,16 +1073,21 @@ def _select_research_topic(today: str, profile: Optional[dict] = None) -> tuple[
         page = (day_of_year // len(topics)) + 1
         return topic, page
 
-    if day_of_year % 4 == 0:
+    if ALLOW_BROAD_RESEARCH_SCAN and day_of_year % 14 == 0:
         topics = broad_topics
-        topic_idx = (day_of_year // 4) % len(topics)
+        topic_idx = (day_of_year // 14) % len(topics)
         topic = topics[topic_idx]
-        page = (day_of_year // max(1, len(topics) * 4)) + 1
-    else:
-        topics = core_topics
+        page = (day_of_year // max(1, len(topics) * 14)) + 1
+    elif focus_topics and (day_of_year % 7) < max(1, min(7, FOCUS_RESEARCH_DAYS_PER_WEEK)):
+        topics = focus_topics
         topic_idx = day_of_year % len(topics)
         topic = topics[topic_idx]
-        page = (day_of_year // len(topics)) + 1
+        page = ((day_of_year // 7) % 3) + 1
+    else:
+        topics = non_focus_topics or focus_topics or core_topics
+        topic_idx = day_of_year % len(topics)
+        topic = topics[topic_idx]
+        page = ((day_of_year // max(1, len(topics))) % 4) + 1
     return topic, page
 
 
@@ -958,16 +1123,135 @@ def _topic_query_candidates(topic: Optional[dict], page: int) -> list[tuple[str,
     return candidates
 
 
+def _normalize_paper_doi(raw: str) -> str:
+    doi = str(raw or "").strip().lower()
+    doi = re.sub(r"^https?://(?:dx\.)?doi\.org/", "", doi)
+    doi = re.sub(r"^doi:\s*", "", doi)
+    return doi.strip().strip(" .;,)")
+
+
+def _normalize_paper_title(raw: str) -> str:
+    text = html.unescape(str(raw or ""))
+    text = unicodedata.normalize("NFKC", text).lower()
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()[:220]
+
+
+def _paper_history_keys(paper: dict) -> list[str]:
+    keys = []
+    doi = _normalize_paper_doi(paper.get("doi", ""))
+    title = _normalize_paper_title(paper.get("title", ""))
+    if doi:
+        keys.append(f"doi:{doi}")
+    if title:
+        keys.append(f"title:{title}")
+    return keys
+
+
+def _paper_history_keys_from_html(section_html: str) -> set[str]:
+    if not section_html:
+        return set()
+
+    keys = set()
+    decoded = html.unescape(section_html)
+    text = re.sub(r"<[^>]+>", " ", decoded)
+    text = re.sub(r"\s+", " ", text).strip()
+
+    for raw_doi in re.findall(r"10\.\d{4,9}/[^\s\"'<>]+", decoded, flags=re.I):
+        doi = _normalize_paper_doi(urllib.parse.unquote(raw_doi))
+        if doi:
+            keys.add(f"doi:{doi}")
+
+    title_patterns = [
+        r"📖\s*标题：\s*(.*?)(?:\s*📰|\s*📅|\s*📊|\s*⭐|\s*📝|$)",
+        r"📄\s*焦点论文：\s*.*?[（(]\d{4}[）)]\.\s*(.*?)(?:\s*📰|\s*📚|\s*🔗|$)",
+    ]
+    for pattern in title_patterns:
+        for match in re.finditer(pattern, text):
+            title = _normalize_paper_title(match.group(1))
+            if title:
+                keys.add(f"title:{title}")
+    return keys
+
+
+def _paper_history_from_existing_site() -> dict:
+    records = {}
+    if not DATA_DIR.exists():
+        return records
+
+    for path in DATA_DIR.glob("*.json"):
+        try:
+            with open(path, encoding="utf-8") as f:
+                entry = json.load(f)
+        except Exception:
+            continue
+        date_key = str(entry.get("date_key") or path.stem)
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_key):
+            continue
+        for section in ("research", "mentor"):
+            for key in _paper_history_keys_from_html(str(entry.get(section) or "")):
+                if date_key > records.get(key, ""):
+                    records[key] = date_key
+    return records
+
+
+def _load_seen_papers(today_dt: datetime) -> dict:
+    records = _paper_history_from_existing_site()
+    try:
+        if _PAPER_SEEN_FILE.exists():
+            with open(_PAPER_SEEN_FILE, encoding="utf-8") as f:
+                saved = json.load(f)
+            for key, date_key in (saved.get("papers") or {}).items():
+                if isinstance(key, str) and isinstance(date_key, str) and date_key > records.get(key, ""):
+                    records[key] = date_key
+    except Exception as ex:
+        log.warning("   无法读取 seen_papers.json: %s", ex)
+
+    return {"papers": _prune_recent_map(records, _PAPER_HISTORY_RETENTION_DAYS, today_dt)}
+
+
+def _paper_seen_recently(paper: dict, seen_records: dict, today_dt: datetime) -> bool:
+    cutoff = _cutoff_str(_PAPER_DEDUP_DAYS, today_dt)
+    return any(
+        isinstance(seen_records.get(key), str) and seen_records[key] >= cutoff
+        for key in _paper_history_keys(paper)
+    )
+
+
+def _save_seen_papers(papers: list[dict], today_dt: datetime) -> None:
+    state = _load_seen_papers(today_dt)
+    records = state.get("papers", {})
+    today_key = today_dt.strftime("%Y-%m-%d")
+    for paper in papers:
+        for key in _paper_history_keys(paper):
+            records[key] = today_key
+    try:
+        with open(_PAPER_SEEN_FILE, "w", encoding="utf-8") as f:
+            json.dump(
+                {"papers": _prune_recent_map(records, _PAPER_HISTORY_RETENTION_DAYS, today_dt)},
+                f,
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
+    except Exception as ex:
+        log.warning("   无法保存 seen_papers.json: %s", ex)
+
+
 def fetch_research_papers(today: str, limit: int = 3, profile: Optional[dict] = None) -> tuple[dict, list]:
     topic, page = _select_research_topic(today, profile=profile)
     query = topic.get("query", "")
     log.info("   OpenAlex 搜索: %s | %s (第 %s 页)", topic.get("name", "研究主线"), query, page)
+    today_dt = _parse_target_date(today)
+    seen_state = _load_seen_papers(today_dt)
+    seen_records = seen_state.get("papers", {})
 
     candidates = []
     seen_candidates = set()
     for query_variant, query_page in _topic_query_candidates(topic, page):
         try:
-            batch = _openalex_search(query_variant, limit=max(limit * 4, 12), page=query_page)
+            batch = _openalex_search(query_variant, limit=max(limit * 10, 30), page=query_page)
         except Exception as ex:
             log.warning("   OpenAlex 请求失败: %s | %s", query_variant, ex)
             continue
@@ -979,17 +1263,32 @@ def fetch_research_papers(today: str, limit: int = 3, profile: Optional[dict] = 
                 continue
             seen_candidates.add(key)
             candidates.append(paper)
-        if len(candidates) >= max(limit * 4, 12):
+        if len(candidates) >= max(limit * 12, 36):
             break
 
     ranked = sorted(
         candidates,
-        key=lambda paper: _paper_quality_score(paper) + _paper_topic_relevance_score(paper, topic) - _paper_domain_penalty(paper, topic),
+        key=lambda paper: _paper_rank_score(paper, topic),
         reverse=True,
     )
+    fresh_ranked = []
+    recent_ranked = []
+    for paper in ranked:
+        if _paper_seen_recently(paper, seen_records, today_dt):
+            recent_ranked.append(paper)
+        else:
+            fresh_ranked.append(paper)
+    if recent_ranked:
+        log.info("   跳过最近 %s 天已读/已推荐论文: %s 篇", _PAPER_DEDUP_DAYS, len(recent_ranked))
+    if not fresh_ranked and ranked:
+        log.warning("   候选论文都在冷却期内，允许回退到近期论文")
+
+    selection_pool = fresh_ranked if len(fresh_ranked) >= limit else fresh_ranked + recent_ranked
     preferred = []
     fallback = []
-    for paper in ranked:
+    for paper in selection_pool:
+        if not _paper_is_topic_relevant(paper, topic):
+            continue
         cites = int(paper.get("cited_by_count", 0) or 0)
         venue = _paper_venue_name(paper)
         current_year = _app_now().year
@@ -1004,7 +1303,10 @@ def fetch_research_papers(today: str, limit: int = 3, profile: Optional[dict] = 
         else:
             fallback.append(paper)
 
-    papers = (preferred if len(preferred) >= limit else ranked)[:limit]
+    relevant_pool = preferred + fallback
+    if not relevant_pool and selection_pool:
+        log.warning("   未找到达到相关性门槛的论文，回退到排序最高候选")
+    papers = (preferred if len(preferred) >= limit else relevant_pool or selection_pool)[:limit]
     if papers:
         log.info(
             "   选文优先级: %s",
@@ -2542,6 +2844,7 @@ def main():
     log.info("🏡 更新格雷西学习小屋网站...")
     date_key = now.strftime("%Y-%m-%d")
     save_entry(date_key, date_str, day_cn, eng_html, bty_html, res_html, mentor_html, news_html)
+    _save_seen_papers(research_papers, now)
     site_path, count = rebuild_site()
     log.info(f"   网站已更新 ({count} 天记录) → {site_path}")
 
