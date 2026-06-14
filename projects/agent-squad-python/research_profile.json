@@ -136,10 +136,15 @@
       "writing_focus": "如何把功能分类、平台语境、多模态资源和身份论证压缩成清楚的论文贡献",
       "why": "直接服务于 Xiaohongshu / translanguaging / digital sociolinguistics 这条稿件线",
       "fallback_queries": [
+        "translanguaging Xiaohongshu digital identity multilingual social media",
+        "Chinese English translanguaging social media identity digital discourse",
+        "translanguaging digital third space identity multilingual practice",
         "translanguaging digital identity multimodal social media",
         "multilingual social media identity translanguaging multimodal discourse",
         "translanguaging digital literacies multimodal platform affordances",
-        "Xiaohongshu RedNote multimodal discourse translanguaging identity"
+        "Xiaohongshu RedNote multimodal discourse translanguaging identity",
+        "translanguaging digital identity bilingual education",
+        "digital translanguaging Chinese English identity"
       ],
       "keywords": [
         "translanguaging",
@@ -148,6 +153,10 @@
         "identity",
         "digital sociolinguistics",
         "indexicality",
+        "digital discourse",
+        "social media",
+        "multilingual practice",
+        "Chinese-English",
         "multimodal discourse analysis",
         "platform affordances",
         "visual discourse"

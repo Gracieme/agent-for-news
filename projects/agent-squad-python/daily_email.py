@@ -249,6 +249,18 @@ WEEKDAY_CN = {
 
 RESEARCH_PROFILE_FILE = Path(__file__).parent / "research_profile.json"
 
+FOCUS_RESEARCH_TERMS = [
+    term.strip().lower()
+    for term in os.environ.get(
+        "FOCUS_RESEARCH_TERMS",
+        "translanguaging",
+    ).split(",")
+    if term.strip()
+]
+
+FOCUS_RESEARCH_DAYS_PER_WEEK = int(os.environ.get("FOCUS_RESEARCH_DAYS_PER_WEEK", "6"))
+ALLOW_BROAD_RESEARCH_SCAN = os.environ.get("ALLOW_BROAD_RESEARCH_SCAN", "").strip().lower() in {"1", "true", "yes"}
+
 
 GENERIC_RESEARCH_QUERIES = [
     # 语言评估 & 考试效度
@@ -864,6 +876,81 @@ def _paper_domain_penalty(paper: dict, topic: Optional[dict]) -> float:
     return 0.0
 
 
+def _topic_identity_text(topic: Optional[dict]) -> str:
+    if not isinstance(topic, dict):
+        return ""
+    return " ".join(
+        [
+            str(topic.get("name") or ""),
+            str(topic.get("query") or ""),
+            " ".join(str(item) for item in topic.get("keywords", []) if str(item).strip()),
+        ]
+    ).lower()
+
+
+def _is_focus_research_topic(topic: Optional[dict]) -> bool:
+    identity = _topic_identity_text(topic)
+    return bool(identity and any(term in identity for term in FOCUS_RESEARCH_TERMS))
+
+
+def _is_digital_focus_topic(topic: Optional[dict]) -> bool:
+    identity = _topic_identity_text(topic)
+    return bool(
+        identity
+        and any(
+            marker in identity
+            for marker in ("xiaohongshu", "digital", "social media", "online", "platform", "third space")
+        )
+    )
+
+
+def _paper_search_text(paper: dict) -> str:
+    return " ".join(
+        [
+            str(paper.get("title") or ""),
+            _paper_venue_name(paper),
+            _reconstruct_abstract(paper.get("abstract_inverted_index") or {}),
+        ]
+    ).lower()
+
+
+def _has_digital_platform_context(text: str) -> bool:
+    return any(
+        marker in text
+        for marker in (
+            "xiaohongshu",
+            "little red book",
+            "social media",
+            "online",
+            "platform",
+            "platforms",
+            "third space",
+            "internet",
+            "virtual communit",
+            "digital discourse",
+            "digital space",
+            "digital spaces",
+        )
+    )
+
+
+def _has_identity_or_multilingual_context(text: str) -> bool:
+    return any(
+        marker in text
+        for marker in (
+            "identity",
+            "identities",
+            "multilingual",
+            "bilingual",
+            "chinese",
+            "english",
+            "indexical",
+            "language practice",
+            "language practices",
+        )
+    )
+
+
 def _paper_topic_relevance_score(paper: dict, topic: Optional[dict]) -> float:
     if not isinstance(topic, dict):
         return 0.0
@@ -879,7 +966,78 @@ def _paper_topic_relevance_score(paper: dict, topic: Optional[dict]) -> float:
     for keyword in keywords:
         if keyword and keyword in text:
             score += 18 if " " in keyword else 8
+    query_terms = [
+        term
+        for term in re.split(r"\s+", str(topic.get("query") or "").lower())
+        if len(term) >= 5 and term not in {"and", "with", "through", "language", "languages"}
+    ]
+    for term in query_terms:
+        if term in text:
+            score += 5
+    if _is_focus_research_topic(topic):
+        has_translanguaging = any(term in text for term in ("translanguaging", "translingual", "code-switching", "codeswitching"))
+        has_digital_or_identity = any(
+            term in text
+            for term in (
+                "xiaohongshu",
+                "little red book",
+                "digital",
+                "social media",
+                "online",
+                "platform",
+                "third space",
+                "identity",
+                "multilingual",
+                "bilingual",
+                "indexical",
+            )
+        )
+        if has_translanguaging and has_digital_or_identity:
+            score += 36
+        elif has_translanguaging:
+            score += 18
+        elif has_digital_or_identity:
+            score += 10
+        if _is_digital_focus_topic(topic) and (
+            _has_digital_platform_context(text)
+            or ("digital" in text and _has_identity_or_multilingual_context(text))
+        ):
+            score += 24
     return score
+
+
+def _minimum_topic_relevance(topic: Optional[dict]) -> float:
+    if _is_digital_focus_topic(topic):
+        return 80.0
+    return 34.0 if _is_focus_research_topic(topic) else 18.0
+
+
+def _paper_is_topic_relevant(paper: dict, topic: Optional[dict]) -> bool:
+    if not isinstance(topic, dict):
+        return True
+    score = _paper_topic_relevance_score(paper, topic)
+    text = _paper_search_text(paper)
+    if _is_digital_focus_topic(topic):
+        has_translanguaging = any(term in text for term in ("translanguaging", "translingual", "code-switching", "codeswitching"))
+        has_platform_context = _has_digital_platform_context(text)
+        has_digital_identity_context = "digital" in text and _has_identity_or_multilingual_context(text)
+        return has_translanguaging and (has_platform_context or has_digital_identity_context) and score >= _minimum_topic_relevance(topic)
+    if score >= _minimum_topic_relevance(topic):
+        return True
+    if _is_focus_research_topic(topic):
+        return "translanguaging" in text and any(
+            marker in text for marker in ("digital", "social media", "identity", "multilingual", "bilingual", "xiaohongshu", "third space")
+        )
+    return False
+
+
+def _paper_rank_score(paper: dict, topic: Optional[dict]) -> float:
+    quality = _paper_quality_score(paper)
+    relevance = _paper_topic_relevance_score(paper, topic)
+    penalty = _paper_domain_penalty(paper, topic)
+    if _is_focus_research_topic(topic):
+        return relevance * 4.0 + quality * 0.35 - penalty
+    return quality + relevance - penalty
 
 
 def _paper_to_text(paper: dict, n: int, relevance: str) -> str:
@@ -930,6 +1088,8 @@ def _select_research_topic(today: str, profile: Optional[dict] = None) -> tuple[
     day_of_year = target_dt.timetuple().tm_yday
     core_topics = [item for item in profile.get("strands", []) if isinstance(item, dict) and item.get("query")]
     broad_topics = _exploration_research_topics()
+    focus_topics = [topic for topic in core_topics if _is_focus_research_topic(topic)]
+    non_focus_topics = [topic for topic in core_topics if not _is_focus_research_topic(topic)]
 
     if not core_topics:
         topics = _default_research_profile()["strands"]
@@ -938,16 +1098,21 @@ def _select_research_topic(today: str, profile: Optional[dict] = None) -> tuple[
         page = (day_of_year // len(topics)) + 1
         return topic, page
 
-    if day_of_year % 4 == 0:
+    if ALLOW_BROAD_RESEARCH_SCAN and day_of_year % 14 == 0:
         topics = broad_topics
-        topic_idx = (day_of_year // 4) % len(topics)
+        topic_idx = (day_of_year // 14) % len(topics)
         topic = topics[topic_idx]
-        page = (day_of_year // max(1, len(topics) * 4)) + 1
-    else:
-        topics = core_topics
+        page = (day_of_year // max(1, len(topics) * 14)) + 1
+    elif focus_topics and (day_of_year % 7) < max(1, min(7, FOCUS_RESEARCH_DAYS_PER_WEEK)):
+        topics = focus_topics
         topic_idx = day_of_year % len(topics)
         topic = topics[topic_idx]
-        page = (day_of_year // len(topics)) + 1
+        page = ((day_of_year // 7) % 3) + 1
+    else:
+        topics = non_focus_topics or focus_topics or core_topics
+        topic_idx = day_of_year % len(topics)
+        topic = topics[topic_idx]
+        page = ((day_of_year // max(1, len(topics))) % 4) + 1
     return topic, page
 
 
@@ -1007,6 +1172,14 @@ def _paper_history_keys(paper: dict) -> list[str]:
     if title:
         keys.append(f"title:{title}")
     return keys
+
+
+def _paper_candidate_keys(paper: dict) -> list[str]:
+    keys = _paper_history_keys(paper)
+    if keys:
+        return keys
+    fallback = str(paper.get("doi") or paper.get("title") or "").strip().lower()
+    return [fallback] if fallback else []
 
 
 def _paper_history_keys_from_html(section_html: str) -> set[str]:
@@ -1160,9 +1333,9 @@ def fetch_research_papers(today: str, limit: int = 3, profile: Optional[dict] = 
     candidates = []
     seen_candidates = set()
     for paper in _priority_paper_candidates(profile or {}, topic):
-        key = (str(paper.get("doi") or paper.get("title") or "")).strip().lower()
-        if key and key not in seen_candidates:
-            seen_candidates.add(key)
+        keys = _paper_candidate_keys(paper)
+        if keys and not any(key in seen_candidates for key in keys):
+            seen_candidates.update(keys)
             candidates.append(paper)
     if candidates:
         log.info("   已加入导师种子文献候选: %s 篇", len(candidates))
@@ -1176,17 +1349,17 @@ def fetch_research_papers(today: str, limit: int = 3, profile: Optional[dict] = 
         if batch:
             log.info("   OpenAlex 备选检索命中: %s (第 %s 页) -> %s 条", query_variant, query_page, len(batch))
         for paper in batch:
-            key = (str(paper.get("doi") or paper.get("title") or "")).strip().lower()
-            if not key or key in seen_candidates:
+            keys = _paper_candidate_keys(paper)
+            if not keys or any(key in seen_candidates for key in keys):
                 continue
-            seen_candidates.add(key)
+            seen_candidates.update(keys)
             candidates.append(paper)
         if len(candidates) >= max(limit * 12, 36):
             break
 
     ranked = sorted(
         candidates,
-        key=lambda paper: _paper_quality_score(paper) + _paper_topic_relevance_score(paper, topic) - _paper_domain_penalty(paper, topic),
+        key=lambda paper: _paper_rank_score(paper, topic),
         reverse=True,
     )
     fresh_ranked = []
@@ -1205,6 +1378,8 @@ def fetch_research_papers(today: str, limit: int = 3, profile: Optional[dict] = 
     preferred = []
     fallback = []
     for paper in selection_pool:
+        if not _paper_is_topic_relevant(paper, topic):
+            continue
         cites = int(paper.get("cited_by_count", 0) or 0)
         venue = _paper_venue_name(paper)
         current_year = _app_now().year
@@ -1219,7 +1394,10 @@ def fetch_research_papers(today: str, limit: int = 3, profile: Optional[dict] = 
         else:
             fallback.append(paper)
 
-    papers = (preferred if len(preferred) >= limit else selection_pool)[:limit]
+    relevant_pool = preferred + fallback
+    if not relevant_pool and selection_pool:
+        log.warning("   未找到达到相关性门槛的论文，回退到排序最高候选")
+    papers = (preferred if len(preferred) >= limit else relevant_pool or selection_pool)[:limit]
     if papers:
         log.info(
             "   选文优先级: %s",
