@@ -1,10 +1,11 @@
 # 每日定时发邮件 + 更新格雷西学习小屋网站
-# 丹佛时间每天早 8:00（UTC 15:00 冬季 / UTC 14:00 夏令时）自动运行
+# 奥克兰当地时间每天早 8:00 自动运行，自动适应新西兰夏令时
 name: Daily Email + Update Site
 
 on:
   schedule:
-    - cron: '0 8 * * *'    # 夏令时 MDT（UTC-6）凌晨 2:00；冬季 MST 改为 '0 9 * * *'
+    - cron: '0 8 * * *'
+      timezone: Pacific/Auckland
   workflow_dispatch:
     inputs:
       target_date:
@@ -49,7 +50,7 @@ jobs:
           EMAIL_TO:          ${{ secrets.TO_EMAIL }}
           SMTP_USER:         ${{ secrets.SMTP_USER }}
           SMTP_PASSWORD:     ${{ secrets.SMTP_PASSWORD }}
-          APP_TIMEZONE:      America/Denver
+          APP_TIMEZONE:      Pacific/Auckland
           TARGET_DATE:       ${{ inputs.target_date }}
         run: python daily_email.py
         working-directory: projects/agent-squad-python

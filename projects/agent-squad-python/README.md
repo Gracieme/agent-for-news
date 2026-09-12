@@ -2,6 +2,10 @@
 
 `daily_email.py` 使用 OpenAI Responses API 生成学习内容和新闻翻译，默认模型为 `gpt-5-mini`。
 
+## 运行时间
+
+每日按奥克兰当地时间早上 8:00 启动（`Pacific/Auckland`），自动适应新西兰夏令时。邮件日期和补发日期也使用奥克兰时区；实际送达时间取决于 GitHub 排队及内容生成耗时。
+
 ## GitHub Actions 配置
 
 在仓库 Settings → Secrets and variables → Actions 添加 `OPENAI_API_KEY` secret，使用有可用额度的 OpenAI API 项目密钥。原有邮件 secrets 保持不变。

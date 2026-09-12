@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 daily_email.py — 每日学习内容 HTML 邮件发送器
-丹佛时间每天早 8:00 自动运行（由 cron 调用）
+奥克兰时间每天早 8:00 自动运行（由 cron 调用）
 """
 
 import os
@@ -65,7 +65,7 @@ def _get_client():
         client = openai.OpenAI(max_retries=0, timeout=180.0)
     return client
 
-APP_TIMEZONE = ZoneInfo(os.environ.get("APP_TIMEZONE", "America/Denver"))
+APP_TIMEZONE = ZoneInfo(os.environ.get("APP_TIMEZONE", "Pacific/Auckland"))
 
 # ══════════════════════════════════════════════════════════════════
 #  SYSTEM PROMPTS
@@ -2879,7 +2879,7 @@ def build_email_html(
     <div style="background:#2d2d2d;border-radius:0 0 14px 14px;
       padding:20px 32px;text-align:center">
       <p style="color:#aaa;margin:0 0 6px;font-size:12px">
-        🤖 &nbsp;Powered by OpenAI GPT &nbsp;·&nbsp; Hits your inbox every morning at 8:00 AM Denver time
+        🤖 &nbsp;Powered by OpenAI GPT &nbsp;·&nbsp; Generated daily from 8:00 AM Auckland time
       </p>
       <p style="color:#666;margin:0;font-size:11px">
         American English &nbsp;·&nbsp; 美妆护肤 &nbsp;·&nbsp; 应用语言学科研 &nbsp;·&nbsp; 全球新闻
