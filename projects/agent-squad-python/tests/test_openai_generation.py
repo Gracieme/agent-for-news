@@ -75,6 +75,13 @@ class GenerationTests(unittest.TestCase):
             daily.collect('s', 'u')
         self.sleep.assert_not_called()
 
+    def test_credit_balance_exhausted_does_not_retry(self):
+        self.replies = [(429, {'error': {'message': 'No credits remaining',
+                         'type': 'insufficient_quota', 'code': 'credit_balance_exhausted'}})]
+        with self.assertRaises(openai.RateLimitError):
+            daily.collect('s', 'u')
+        self.sleep.assert_not_called()
+
     def test_authentication_failure_does_not_retry(self):
         self.replies = [(401, {'error': {'message': 'Invalid key', 'type': 'invalid_request_error'}})]
         with self.assertRaises(openai.AuthenticationError):

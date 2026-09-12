@@ -188,7 +188,6 @@ SITE_TEMPLATE = """<!DOCTYPE html>
       border-color: var(--blue); background: #e8f0fe; color: var(--blue);
       box-shadow: 0 2px 10px rgba(26,115,232,.18);
     }
-
     .tab-btn[data-tab="research"].active {
       border-color: var(--teal); background: #e0f7fa; color: var(--teal);
       box-shadow: 0 2px 10px rgba(0,131,143,.18);

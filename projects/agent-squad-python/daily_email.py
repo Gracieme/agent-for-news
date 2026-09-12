@@ -522,7 +522,10 @@ def _collect_once(system: str, user_prompt: str, max_tokens: int = 3500, **kwarg
             return response.output_text, "end_turn"
         except (openai.APIStatusError, openai.APIConnectionError) as e:
             status = getattr(e, "status_code", None)
-            quota_exhausted = getattr(e, "code", None) == "insufficient_quota"
+            quota_exhausted = (
+                getattr(e, "code", None) in ("insufficient_quota", "credit_balance_exhausted")
+                or getattr(e, "type", None) == "insufficient_quota"
+            )
             transient = status is None or status in (408, 409, 429) or status >= 500
             if transient and not quota_exhausted and attempt < 4:
                 wait = 30 * (attempt + 1)
