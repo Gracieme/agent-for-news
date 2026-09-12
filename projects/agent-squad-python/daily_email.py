@@ -19,7 +19,8 @@ from datetime import datetime, timedelta
 from typing import Optional
 from zoneinfo import ZoneInfo
 
-import openai
+from google import genai
+from google.genai import errors, types
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
 from build_site import DATA_DIR, save_entry, rebuild as rebuild_site
@@ -50,19 +51,20 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "").strip() or "gpt-5-mini"
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "").strip() or "gemini-2.5-flash-lite"
 client = None
 
 
 def _get_client():
     global client
     if client is None:
-        if not os.environ.get("OPENAI_API_KEY", "").strip():
+        api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+        if not api_key:
             raise RuntimeError(
-                "Missing OPENAI_API_KEY. Add it to the repository's Actions secrets "
+                "Missing GEMINI_API_KEY. Add it to the repository's Actions secrets "
                 "or the local environment before generating daily content."
             )
-        client = openai.OpenAI(max_retries=0, timeout=180.0)
+        client = genai.Client(api_key=api_key)
     return client
 
 APP_TIMEZONE = ZoneInfo(os.environ.get("APP_TIMEZONE", "Pacific/Auckland"))
@@ -497,39 +499,40 @@ def _app_now() -> datetime:
     return datetime.now(APP_TIMEZONE)
 
 def _collect_once(system: str, user_prompt: str, max_tokens: int = 3500, **kwargs) -> tuple[str, str]:
-    """Call GPT and normalize the completion status for truncation retries."""
+    """Call Gemini and normalize its finish reason for truncation retries."""
     for attempt in range(5):
         try:
-            response = _get_client().responses.create(
-                model=OPENAI_MODEL,
-                # Responses counts reasoning tokens in the output budget too.
-                max_output_tokens=max_tokens + 4096,
-                reasoning={"effort": "low"},
-                instructions=system,
-                input=user_prompt,
-                store=False,
-                **kwargs,
+            response = _get_client().models.generate_content(
+                model=GEMINI_MODEL,
+                contents=user_prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=system,
+                    max_output_tokens=max_tokens,
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
+                    **kwargs,
+                ),
             )
-            if response.status == "incomplete":
-                reason = getattr(response.incomplete_details, "reason", None)
-                if reason == "max_output_tokens":
-                    return response.output_text, "max_tokens"
-                raise RuntimeError(f"OpenAI response incomplete: {reason}")
-            if response.status != "completed":
-                raise RuntimeError(f"OpenAI response status: {response.status}")
-            if not response.output_text.strip():
-                raise RuntimeError("OpenAI returned no text; daily content was not generated.")
-            return response.output_text, "end_turn"
-        except (openai.APIStatusError, openai.APIConnectionError) as e:
-            status = getattr(e, "status_code", None)
-            quota_exhausted = (
-                getattr(e, "code", None) in ("insufficient_quota", "credit_balance_exhausted")
-                or getattr(e, "type", None) == "insufficient_quota"
+            candidate = response.candidates[0] if response.candidates else None
+            finish_reason = getattr(candidate, "finish_reason", None)
+            reason = getattr(finish_reason, "name", str(finish_reason or ""))
+            text = (response.text or "").strip()
+            if reason == "MAX_TOKENS":
+                return text, "max_tokens"
+            if reason not in ("", "STOP"):
+                raise RuntimeError(f"Gemini response stopped: {reason}")
+            if not text:
+                raise RuntimeError("Gemini returned no text; daily content was not generated.")
+            return text, "end_turn"
+        except errors.APIError as e:
+            status = getattr(e, "code", None)
+            message = str(e).lower()
+            quota_exhausted = status == 429 and any(
+                marker in message for marker in ("quota", "resource_exhausted", "billing")
             )
             transient = status is None or status in (408, 409, 429) or status >= 500
             if transient and not quota_exhausted and attempt < 4:
                 wait = 30 * (attempt + 1)
-                log.warning("OpenAI %s error, retrying in %ds (attempt %d/5)…", status or "connection", wait, attempt + 1)
+                log.warning("Gemini %s error, retrying in %ds (attempt %d/5)…", status or "connection", wait, attempt + 1)
                 time.sleep(wait)
             else:
                 raise
@@ -565,7 +568,7 @@ def collect_complete(
     **kwargs,
 ) -> str:
     """
-    Retry GPT generation when output is cut off by token limits or misses
+    Retry Gemini generation when output is cut off by token limits or misses
     required late-stage sections.
     """
     token_budget = max_tokens
@@ -583,7 +586,7 @@ def collect_complete(
 
         if attempt == max_attempts:
             log.warning(
-                "GPT output may be incomplete after %s attempts (stop_reason=%s, missing=%s, tail=%r)",
+                "Gemini output may be incomplete after %s attempts (stop_reason=%s, missing=%s, tail=%r)",
                 attempt,
                 stop_reason,
                 missing_markers,
@@ -593,7 +596,7 @@ def collect_complete(
 
         next_budget = int(token_budget * growth_factor)
         log.warning(
-            "GPT output looked incomplete (attempt %s/%s, stop_reason=%s, missing=%s). Retrying with max_tokens=%s",
+            "Gemini output looked incomplete (attempt %s/%s, stop_reason=%s, missing=%s). Retrying with max_tokens=%s",
             attempt,
             max_attempts,
             stop_reason,
@@ -1940,7 +1943,7 @@ def _fetch_rss(url: str, limit: int = 10) -> list:
 
 def gen_news(today: str) -> list:
     """
-    Fetch top-5 news per region via RSS, translate titles to Chinese with GPT,
+    Fetch top-5 news per region via RSS, translate titles to Chinese with Gemini,
     and return a list of region dicts ready for news_to_html().
     Uses cross-day URL deduplication to avoid repeating articles across multiple days.
     """
@@ -2015,7 +2018,7 @@ def gen_news(today: str) -> list:
         len(newly_seen["sources"]),
     )
 
-    # Step 2: batch-translate all titles with one GPT call
+    # Step 2: batch-translate all titles with one Gemini call
     all_items = []
     for region, items in region_raw.items():
         for item in items:
@@ -2044,7 +2047,7 @@ def gen_news(today: str) -> list:
         log.warning(f"   新闻翻译失败: {ex}")
         raw = ""
 
-    # Parse GPT's output
+    # Parse Gemini's output
     translations: dict[int, tuple[str, str]] = {}
     for line in raw.splitlines():
         m = re.match(r"\[(\d+)\]\s*\|([^|]+)\|(.+)", line.strip())
@@ -2682,7 +2685,7 @@ def build_email_html(
     <div style="background:#2d2d2d;border-radius:0 0 14px 14px;
       padding:20px 32px;text-align:center">
       <p style="color:#aaa;margin:0 0 6px;font-size:12px">
-        🤖 &nbsp;Powered by OpenAI GPT &nbsp;·&nbsp; Generated daily from 8:00 AM Auckland time
+        🤖 &nbsp;Powered by Google Gemini &nbsp;·&nbsp; Generated daily from 8:00 AM Auckland time
       </p>
       <p style="color:#666;margin:0;font-size:11px">
         American English &nbsp;·&nbsp; 应用语言学科研 &nbsp;·&nbsp; 全球新闻
