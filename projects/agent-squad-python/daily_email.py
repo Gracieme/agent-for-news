@@ -11,6 +11,7 @@ import json
 import time
 import logging
 import smtplib
+import wave
 import urllib.parse
 import unicodedata
 from email.message import EmailMessage
@@ -51,7 +52,9 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "").strip() or "gemini-2.5-flash-lite"
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "").strip() or "gemini-3.1-pro-preview"
+GEMINI_NEWS_MODEL = os.environ.get("GEMINI_NEWS_MODEL", "").strip() or "gemini-2.5-flash"
+GEMINI_TTS_MODEL = os.environ.get("GEMINI_TTS_MODEL", "").strip() or "gemini-2.5-pro-preview-tts"
 client = None
 
 
@@ -80,7 +83,7 @@ ENGLISH_SYSTEM = """你是一位专业的英语口语学习助手，帮助学习
 每天的任务：
 1. 精选10条地道英语表达——可来自任何英语国家，优先选真实日常在用的口语、俚语、惯用语、流行短语（涵盖多元地区，不局限于美国）
 2. 每条注明来源地区和使用场景
-3. 将这10条表达自然融入一段生活化的口语对话（约250-300词），用一问一答的形式呈现，模拟真实日常场景（朋友聊天、同事对话、家庭闲聊等），全部10条表达自然出现在对话中
+3. 将这10条表达自然融入一段生活化的双人对话（约250-300词），固定使用 A 和 B，一问一答，模拟真实日常场景（朋友聊天、同事对话、家庭闲聊等），全部10条表达自然出现在对话中
 4. 提供完整中英对照：先写英文对话，再写中文翻译
 
 输出格式（严格遵守）：
@@ -90,7 +93,7 @@ ENGLISH_SYSTEM = """你是一位专业的英语口语学习助手，帮助学习
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 【英文原文】
-（生活化口语对话，约250-300词，2-3人对话，一问一答，轻松自然，全部10条表达融入其中。格式：
+（生活化口语对话，约250-300词，只有 A 和 B 两人，一问一答，轻松自然，全部10条表达融入其中。格式：
 A: ...
 B: ...
 A: ...）
@@ -106,6 +109,8 @@ A: ...）
 - 对话要有真实感，像真人在说话，不要像课本范文
 - 每期尽量覆盖2-3个不同地区的表达，兼顾多样性
 - 不要过于书面或过时，优先选当代真实在用的表达
+- 难度定位 C1-C2：优先选择有语用色彩、语域限制或文化意味的表达，排除初级教材常见短语和只靠字面即可理解的简单搭配
+- 不得重复提示中列出的近期表达，也不要用仅有轻微词形变化的近似表达规避去重
 - 10条表达自然融入对话，不生硬
 - 若对话中还有其他地道表达（如 on the fence、under the weather 等）虽未列入本日10条，请用 __双下划线__ 标出，供读者留意（非学习重点，仅作地道表达提示）"""
 
@@ -498,17 +503,30 @@ def _app_now() -> datetime:
         log.warning("TARGET_DATE=%r 无法解析，改用 %s 当前时间", override, APP_TIMEZONE)
     return datetime.now(APP_TIMEZONE)
 
-def _collect_once(system: str, user_prompt: str, max_tokens: int = 3500, **kwargs) -> tuple[str, str]:
+def _collect_once(
+    system: str,
+    user_prompt: str,
+    max_tokens: int = 3500,
+    *,
+    model: Optional[str] = None,
+    **kwargs,
+) -> tuple[str, str]:
     """Call Gemini and normalize its finish reason for truncation retries."""
+    selected_model = model or GEMINI_MODEL
+    thinking_config = (
+        types.ThinkingConfig(thinking_level="LOW")
+        if selected_model.startswith("gemini-3")
+        else types.ThinkingConfig(thinking_budget=128 if "-pro" in selected_model else 0)
+    )
     for attempt in range(5):
         try:
             response = _get_client().models.generate_content(
-                model=GEMINI_MODEL,
+                model=selected_model,
                 contents=user_prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=system,
                     max_output_tokens=max_tokens,
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),
+                    thinking_config=thinking_config,
                     **kwargs,
                 ),
             )
@@ -608,6 +626,127 @@ def collect_complete(
     return stripped
 
 
+def _normalize_expression(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", html.unescape(value).lower()).strip()
+
+
+def _recent_english_expressions(max_days: int = 45) -> list[str]:
+    """Read recent site entries so the daily selection does not recycle phrases."""
+    expressions: list[str] = []
+    if not DATA_DIR.exists():
+        return expressions
+    pattern = re.compile(r'color:#1a73e8;font-size:14px[^>]*>([^<]+)</strong>')
+    for entry_path in sorted(DATA_DIR.glob("*.json"), reverse=True)[:max_days]:
+        try:
+            entry = json.loads(entry_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        expressions.extend(html.unescape(match).strip() for match in pattern.findall(entry.get("english", "")))
+    return list(dict.fromkeys(item for item in expressions if item))
+
+
+def _extract_expression_names(text: str) -> list[str]:
+    section = text.split("【本日表达列表】", 1)
+    if len(section) != 2:
+        return []
+    expressions = []
+    for line in section[1].splitlines():
+        match = re.match(r"^\s*\d{1,2}[.、]\s+(.+?)(?:\s*[—–]\s*|\s*\|)", line)
+        if match:
+            value = re.sub(r"[*_`\[\]]", "", match.group(1)).strip()
+            if value:
+                expressions.append(value)
+    return expressions
+
+
+def _extract_english_dialogue(text: str) -> str:
+    match = re.search(r"【英文原文】(.*?)【中文翻译】", text, flags=re.S)
+    if not match:
+        raise RuntimeError("Could not find the English dialogue for speech generation")
+    lines = []
+    speakers = set()
+    for raw_line in match.group(1).splitlines():
+        dialogue = re.match(r"^\s*([AB])\s*[:：]\s*(.+)", raw_line)
+        if dialogue:
+            speaker, words = dialogue.groups()
+            speakers.add(speaker)
+            clean_words = re.sub(r"[*_`]", "", words).strip()
+            lines.append(f"{speaker}: {clean_words}")
+    if speakers != {"A", "B"} or len(lines) < 4:
+        raise RuntimeError("English dialogue must contain both A and B speakers")
+    return "\n".join(lines)
+
+
+def gen_dialogue_audio(english_text: str, date_key: str) -> Path:
+    """Generate a two-speaker male/female WAV and save it with the website."""
+    dialogue = _extract_english_dialogue(english_text)
+    prompt = (
+        "Perform this English conversation exactly as written. A is an adult man with a warm, "
+        "natural voice. B is an adult woman with a clear, natural voice. Use contemporary "
+        "conversational English, expressive reactions, realistic turn-taking, brief pauses, and "
+        "a moderate learning-friendly pace. Do not read the speaker labels aloud.\n\n" + dialogue
+    )
+    response = _get_client().models.generate_content(
+        model=GEMINI_TTS_MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_modalities=["AUDIO"],
+            speech_config=types.SpeechConfig(
+                multi_speaker_voice_config=types.MultiSpeakerVoiceConfig(
+                    speaker_voice_configs=[
+                        types.SpeakerVoiceConfig(
+                            speaker="A",
+                            voice_config=types.VoiceConfig(
+                                prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Puck")
+                            ),
+                        ),
+                        types.SpeakerVoiceConfig(
+                            speaker="B",
+                            voice_config=types.VoiceConfig(
+                                prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Kore")
+                            ),
+                        ),
+                    ]
+                )
+            ),
+        ),
+    )
+    audio_data = None
+    for candidate in response.candidates or []:
+        for part in candidate.content.parts or []:
+            if part.inline_data and part.inline_data.data:
+                audio_data = part.inline_data.data
+                break
+        if audio_data:
+            break
+    if not audio_data:
+        raise RuntimeError("Gemini TTS returned no audio data")
+
+    audio_dir = DATA_DIR.parent / "audio"
+    audio_dir.mkdir(parents=True, exist_ok=True)
+    audio_path = audio_dir / f"{date_key}-dialogue.wav"
+    with wave.open(str(audio_path), "wb") as wav_file:
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(24000)
+        wav_file.writeframes(audio_data)
+    return audio_path
+
+
+def dialogue_audio_html(date_key: str) -> str:
+    base_url = os.environ.get("SITE_BASE_URL", "https://gracieme.github.io/agent-for-news").rstrip("/")
+    audio_url = f"{base_url}/audio/{date_key}-dialogue.wav"
+    return (
+        '<div style="background:#eef5ff;border:1px solid #c7dcff;border-radius:10px;'
+        'padding:14px 16px;margin:0 0 18px">'
+        '<div style="font-weight:700;color:#0d47a1;margin-bottom:8px">🎧 双人地道对话发音</div>'
+        '<div style="font-size:12px;color:#566;margin-bottom:9px">A 男声 · B 女声 · 自然语速</div>'
+        f'<audio controls preload="none" style="width:100%"><source src="{audio_url}" type="audio/wav"></audio>'
+        f'<div style="margin-top:8px"><a href="{audio_url}" style="color:#1a73e8;font-size:13px;'
+        'font-weight:600;text-decoration:none">▶ 播放或下载今日对话音频</a></div></div>'
+    )
+
+
 def gen_english(today: str, weekday: int) -> str:
     topics = [
         # 职场 & 职业发展
@@ -658,14 +797,36 @@ def gen_english(today: str, weekday: int) -> str:
     now = _app_now()
     day_of_year = now.timetuple().tm_yday
     topic = topics[day_of_year % len(topics)]
-    return collect_complete(
-        ENGLISH_SYSTEM,
-        f"今天是{today}。请围绕主题「{topic}」，"
-        "为我提供今日的10条地道英语表达学习内容，优先选真实日常在用的口语、俚语和惯用语，"
-        "按照规定格式输出完整内容。",
-        max_tokens=2800,
-        required_markers=["【中文翻译】", "【本日表达列表】"],
+    recent = _recent_english_expressions()
+    recent_block = "、".join(recent)
+    base_prompt = (
+        f"今天是{today}。请围绕主题「{topic}」，为我提供今日的10条地道英语表达学习内容。"
+        "难度保持在 C1-C2，选择母语者真实使用、值得学习语用差异的口语、俚语和惯用语。"
+        "对话只能有 A 和 B 两人，A 为男声角色，B 为女声角色。按照规定格式输出完整内容。\n\n"
+        f"最近45天已经使用过的表达如下，本期不得重复或给出近似变体：\n{recent_block or '（暂无）'}"
     )
+    feedback = ""
+    recent_normalized = {_normalize_expression(item) for item in recent}
+    for attempt in range(1, 3):
+        result = collect_complete(
+            ENGLISH_SYSTEM,
+            base_prompt + feedback,
+            max_tokens=3200,
+            required_markers=["【中文翻译】", "【本日表达列表】"],
+        )
+        selected = _extract_expression_names(result)
+        normalized = [_normalize_expression(item) for item in selected]
+        repeats = [item for item, key in zip(selected, normalized) if key in recent_normalized]
+        if len(selected) == 10 and len(set(normalized)) == 10 and not repeats:
+            log.info("   表达去重：10/10 条通过最近45天重复检查")
+            return result
+        feedback = (
+            "\n\n上一版未通过质量检查，请完整重写。"
+            f"检测到表达数量为 {len(selected)}，近期重复项为 {repeats or '无'}。"
+            "必须正好10条、彼此不同、且不与近期列表重复。"
+        )
+        log.warning("English expression quality check failed on attempt %s; regenerating", attempt)
+    raise RuntimeError("English expression selection failed repetition and completeness checks")
 
 
 
@@ -1941,6 +2102,36 @@ def _fetch_rss(url: str, limit: int = 10) -> list:
         return []
 
 
+def _parse_news_translations(raw: str, expected_count: int) -> dict[int, tuple[str, str]]:
+    """Parse a complete structured translation response or fail before sending."""
+    try:
+        translated_items = json.loads(raw)
+    except json.JSONDecodeError as ex:
+        raise RuntimeError(f"Gemini news translation was not valid JSON: {ex}") from ex
+    if not isinstance(translated_items, list):
+        raise RuntimeError("Gemini news translation must be a JSON array")
+
+    translations: dict[int, tuple[str, str]] = {}
+    for translated in translated_items:
+        if not isinstance(translated, dict):
+            continue
+        try:
+            idx = int(translated["index"]) - 1
+            cn_title = str(translated["title_cn"]).strip()
+            summary = str(translated["summary"]).strip()
+        except (KeyError, TypeError, ValueError):
+            continue
+        if 0 <= idx < expected_count and cn_title and summary:
+            translations[idx] = (cn_title, summary)
+
+    missing = [str(i + 1) for i in range(expected_count) if i not in translations]
+    if missing:
+        raise RuntimeError(
+            "Gemini omitted required news translations for item(s): " + ", ".join(missing)
+        )
+    return translations
+
+
 def gen_news(today: str) -> list:
     """
     Fetch top-5 news per region via RSS, translate titles to Chinese with Gemini,
@@ -2032,35 +2223,44 @@ def gen_news(today: str) -> list:
     )
     prompt = (
         "下面是今日各媒体新闻标题列表，请为每条提供：\n"
-        "① 中文标题（如原标题已是中文则直接保留，否则翻译）\n"
-        "② 一句话中文简介，25字以内，概括新闻要点；\n"
+        "① 准确、自然、信息完整的中文标题（如原标题已是中文则直接保留）；\n"
+        "   人名、机构名和地名采用中文媒体常用译法，不要生硬逐字翻译；\n"
+        "② 一句话中文简介，35-55字，交代事件主体、发生了什么以及为何值得关注；\n"
         "   若能判断该媒体立场（官方/独立/左/右/中立），\n"
         "   可在简介末尾用括号注明，如（官方视角）（西方主流）（批评性报道）等，\n"
-        "   无法判断则不加\n\n"
-        "输出格式严格按照（每条占一行，用|分隔，不要其他内容）：\n"
-        "[序号]|中文标题|简介\n\n"
+        "   无法判断则不加。不得只复述标题，也不得输出英文标题作为中文标题。\n"
+        "请为每个序号返回一项，不能遗漏或改变序号。\n\n"
         "原始标题：\n" + numbered
     )
-    try:
-        raw = collect("你是专业新闻翻译和摘要助手。", prompt, max_tokens=1200).strip()
-    except Exception as ex:
-        log.warning(f"   新闻翻译失败: {ex}")
-        raw = ""
+    schema = {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {
+                "index": {"type": "integer"},
+                "title_cn": {"type": "string"},
+                "summary": {"type": "string"},
+            },
+            "required": ["index", "title_cn", "summary"],
+        },
+    }
+    raw = collect(
+        "你是严谨的中文新闻编辑，擅长准确翻译标题并补充有信息量的中文导读。",
+        prompt,
+        max_tokens=3000,
+        model=GEMINI_NEWS_MODEL,
+        response_mime_type="application/json",
+        response_json_schema=schema,
+    ).strip()
 
     # Parse Gemini's output
-    translations: dict[int, tuple[str, str]] = {}
-    for line in raw.splitlines():
-        m = re.match(r"\[(\d+)\]\s*\|([^|]+)\|(.+)", line.strip())
-        if m:
-            idx      = int(m.group(1)) - 1
-            cn_title = m.group(2).strip()
-            summary  = m.group(3).strip()
-            translations[idx] = (cn_title, summary)
+    translations = _parse_news_translations(raw, len(all_items))
+    log.info("   新闻翻译：%s/%s 条中文标题与导读已生成", len(translations), len(all_items))
 
     # Step 3: merge translations back
     for i, item in enumerate(all_items):
         cn_title, summary = translations.get(i, ("", ""))
-        item["title_cn"] = cn_title or item["title"]
+        item["title_cn"] = cn_title
         item["summary"]  = summary
 
     # Step 4: re-group by region
@@ -2762,7 +2962,7 @@ def _github_actions_warning(message: str) -> None:
     print(f"::warning::{safe_message}", flush=True)
 
 
-def send_email(subject: str, html_body: str) -> bool:
+def send_email(subject: str, html_body: str, attachment_path: Optional[Path] = None) -> bool:
     missing = [name for name in ("SMTP_PASSWORD", "EMAIL_FROM", "EMAIL_TO") if not os.environ.get(name)]
     if missing:
         detail = f"邮件未发送：缺少环境变量 {', '.join(missing)}。网站更新已继续。"
@@ -2783,6 +2983,14 @@ def send_email(subject: str, html_body: str) -> bool:
     message["Subject"] = subject
     message.set_content("这封邮件需要使用支持 HTML 的邮件客户端查看。")
     message.add_alternative(html_body, subtype="html")
+    if attachment_path:
+        audio_bytes = attachment_path.read_bytes()
+        message.add_attachment(
+            audio_bytes,
+            maintype="audio",
+            subtype="wav",
+            filename=attachment_path.name,
+        )
 
     try:
         with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=30) as smtp:
@@ -2817,6 +3025,11 @@ def main():
     eng_text = gen_english(date_str, weekday)
     log.info(f"   完成，{len(eng_text)} 字符")
 
+    date_key = now.strftime("%Y-%m-%d")
+    log.info("🎧 生成一男一女双人对话音频...")
+    dialogue_audio_path = gen_dialogue_audio(eng_text, date_key)
+    log.info("   完成 → %s", dialogue_audio_path)
+
     research_profile = _load_research_profile()
     log.info(
         "🧭 已载入研究画像：%s 条主线，活跃稿件 %s 个",
@@ -2843,7 +3056,7 @@ def main():
     log.info(f"   完成，{sum(len(g['items']) for g in news_groups)} 条新闻")
 
     log.info("🎨 转换为 HTML...")
-    eng_html  = english_to_html(eng_text)
+    eng_html  = dialogue_audio_html(date_key) + english_to_html(eng_text)
     res_html  = research_to_html(res_text)
     mentor_html = mentor_to_html(mentor_text)
     news_html = news_to_html(news_groups)
@@ -2855,14 +3068,13 @@ def main():
     mentor_subject = f"🎓 导师带读 · {date_str} {day_cn}"
 
     log.info("🏡 更新格雷西学习小屋网站...")
-    date_key = now.strftime("%Y-%m-%d")
     save_entry(date_key, date_str, day_cn, eng_html, res_html, mentor_html, news_html)
     _save_seen_papers(research_papers, now)
     site_path, count = rebuild_site()
     log.info(f"   网站已更新 ({count} 天记录) → {site_path}")
 
     log.info(f"📨 发送邮件到 {os.environ.get('EMAIL_TO', '(未配置)')}...")
-    daily_sent = send_email(subject, full_html)
+    daily_sent = send_email(subject, full_html, attachment_path=dialogue_audio_path)
     if daily_sent:
         log.info("✅ 综合日报发送成功！")
     mentor_sent = send_email(mentor_subject, mentor_email_html)

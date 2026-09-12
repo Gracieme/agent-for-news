@@ -1,9 +1,11 @@
 """Unit tests for Gemini-backed daily content generation."""
 
+import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
 import sys
+import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -39,11 +41,19 @@ class GenerationTests(unittest.TestCase):
         self.generate.return_value = response()
         self.assertEqual(daily.collect("系统", "用户", max_tokens=320), "完整内容。")
         call = self.generate.call_args.kwargs
-        self.assertEqual(call["model"], "gemini-2.5-flash-lite")
+        self.assertEqual(call["model"], "gemini-3.1-pro-preview")
         self.assertEqual(call["contents"], "用户")
         config = call["config"].model_dump(exclude_none=True)
         self.assertEqual(config["system_instruction"], "系统")
         self.assertEqual(config["max_output_tokens"], 320)
+        self.assertEqual(config["thinking_config"]["thinking_level"], "LOW")
+
+    def test_model_override_uses_flash_without_thinking(self):
+        self.generate.return_value = response()
+        daily.collect("系统", "用户", model="gemini-2.5-flash")
+        call = self.generate.call_args.kwargs
+        self.assertEqual(call["model"], "gemini-2.5-flash")
+        config = call["config"].model_dump(exclude_none=True)
         self.assertEqual(config["thinking_config"]["thinking_budget"], 0)
 
     def test_token_limit_retries_with_larger_budget(self):
@@ -100,6 +110,70 @@ class GenerationTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(RuntimeError, "Missing GEMINI_API_KEY"):
                 daily.collect("s", "u")
+
+    def test_structured_news_translations_require_every_item(self):
+        raw = json.dumps([
+            {"index": 1, "title_cn": "中文标题一", "summary": "完整导读一"},
+            {"index": 2, "title_cn": "中文标题二", "summary": "完整导读二"},
+        ])
+        self.assertEqual(
+            daily._parse_news_translations(raw, 2),
+            {0: ("中文标题一", "完整导读一"), 1: ("中文标题二", "完整导读二")},
+        )
+        incomplete = json.dumps([
+            {"index": 1, "title_cn": "中文标题一", "summary": "完整导读一"}
+        ])
+        with self.assertRaisesRegex(RuntimeError, r"item\(s\): 2"):
+            daily._parse_news_translations(incomplete, 2)
+
+    def test_expression_list_and_dialogue_are_extractable(self):
+        text = """【英文原文】
+A: We should play it by ear.
+B：That works for me.
+A: Let's check tomorrow.
+B: Deal.
+【中文翻译】
+A：我们随机应变。
+【本日表达列表】
+1. **play it by ear** — 含义：随机应变 | 地区：全球通用 | 场景：计划
+2. read the room — 含义：察言观色 | 地区：全球通用 | 场景：社交
+"""
+        self.assertEqual(
+            daily._extract_english_dialogue(text).splitlines()[0],
+            "A: We should play it by ear.",
+        )
+        self.assertEqual(
+            daily._extract_expression_names(text),
+            ["play it by ear", "read the room"],
+        )
+
+    def test_dialogue_audio_uses_male_and_female_voices(self):
+        inline_data = SimpleNamespace(data=b"\x00\x00" * 240)
+        part = SimpleNamespace(inline_data=inline_data)
+        candidate = SimpleNamespace(content=SimpleNamespace(parts=[part]))
+        self.generate.return_value = SimpleNamespace(candidates=[candidate])
+        text = """【英文原文】
+A: We should play it by ear.
+B: That works for me.
+A: Let's check tomorrow.
+B: Deal.
+【中文翻译】
+A：我们随机应变。
+"""
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
+            daily, "DATA_DIR", Path(temp_dir) / "data"
+        ):
+            audio_path = daily.gen_dialogue_audio(text, "2026-09-12")
+            self.assertTrue(audio_path.exists())
+        call = self.generate.call_args.kwargs
+        self.assertEqual(call["model"], "gemini-2.5-pro-preview-tts")
+        config = call["config"].model_dump(exclude_none=True)
+        speakers = config["speech_config"]["multi_speaker_voice_config"]["speaker_voice_configs"]
+        self.assertEqual([item["speaker"] for item in speakers], ["A", "B"])
+        self.assertEqual(
+            [item["voice_config"]["prebuilt_voice_config"]["voice_name"] for item in speakers],
+            ["Puck", "Kore"],
+        )
 
 
 if __name__ == "__main__":

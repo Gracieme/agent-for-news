@@ -1,6 +1,6 @@
 # 每日学习邮件与网站
 
-`daily_email.py` 使用 Gemini API 生成学习内容和新闻翻译，默认模型为 `gemini-2.5-flash-lite`。
+`daily_email.py` 使用 Gemini API 生成每日内容。英语、科研推荐和导师带读默认使用 `gemini-3.1-pro-preview`；新闻翻译使用 `gemini-2.5-flash` 的结构化输出。英语栏目会检查最近 45 天的表达以减少重复，并通过 `gemini-2.5-pro-preview-tts` 生成 A 男声、B 女声的双人对话音频；音频随日报附上，也可在学习小屋播放。
 
 ## 运行时间
 
@@ -10,7 +10,9 @@
 
 在仓库 Settings → Secrets and variables → Actions 添加 `GEMINI_API_KEY` secret。原有邮件 secrets 保持不变。
 
-可选：添加 `GEMINI_MODEL` repository variable。未设置时使用 `gemini-2.5-flash-lite`。
+可选：添加 `GEMINI_MODEL` repository variable。未设置时使用 `gemini-3.1-pro-preview`。新闻翻译可通过 `GEMINI_NEWS_MODEL` 单独覆盖，默认使用 `gemini-2.5-flash`。
+
+可选：添加 `GEMINI_TTS_MODEL` repository variable 来覆盖语音模型，默认使用质量更高的 `gemini-2.5-pro-preview-tts`（需启用 Gemini API 付费层）。
 
 配置后，在 Actions 中选择 **Daily Email + Update Site** → **Run workflow**。需要补发时填写 `target_date`（如 `2026-09-11`）；运行会发送邮件并更新网站。旧失败运行的 Re-run 使用旧提交，不能用于切换后的首次运行。
 
