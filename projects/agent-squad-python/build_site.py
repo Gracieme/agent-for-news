@@ -17,7 +17,7 @@ DATA_DIR    = WEBSITE_DIR / "data"
 # ══════════════════════════════════════════════════════════════════
 
 def save_entry(date_key: str, date_cn: str, day_cn: str,
-               english_html: str, beauty_html: str, research_html: str,
+               english_html: str, research_html: str,
                mentor_html: str = "",
                news_html: str = ""):
     """Save one day's rendered HTML sections as a JSON file."""
@@ -27,7 +27,6 @@ def save_entry(date_key: str, date_cn: str, day_cn: str,
         "date_cn":  date_cn,
         "day_cn":   day_cn,
         "english":  english_html,
-        "beauty":   beauty_html,
         "research": research_html,
         "mentor":   mentor_html,
         "news":     news_html,
@@ -45,7 +44,9 @@ def load_entries() -> list:
     for f in sorted(DATA_DIR.glob("*.json"), reverse=True):
         try:
             with open(f, encoding="utf-8") as fp:
-                entries.append(json.load(fp))
+                entry = json.load(fp)
+                entry.pop("beauty", None)  # Hide the retired section in historical pages.
+                entries.append(entry)
         except Exception:
             pass
     return entries
@@ -187,10 +188,7 @@ SITE_TEMPLATE = """<!DOCTYPE html>
       border-color: var(--blue); background: #e8f0fe; color: var(--blue);
       box-shadow: 0 2px 10px rgba(26,115,232,.18);
     }
-    .tab-btn[data-tab="beauty"].active {
-      border-color: var(--pink); background: #fce4ec; color: var(--pink);
-      box-shadow: 0 2px 10px rgba(194,24,91,.18);
-    }
+
     .tab-btn[data-tab="research"].active {
       border-color: var(--teal); background: #e0f7fa; color: var(--teal);
       box-shadow: 0 2px 10px rgba(0,131,143,.18);
@@ -251,7 +249,6 @@ SITE_TEMPLATE = """<!DOCTYPE html>
   <main class="main">
     <div class="tab-bar" id="tab-bar">
       <button class="tab-btn active" data-tab="english">📚 英语表达</button>
-      <button class="tab-btn"        data-tab="beauty">💄 美妆</button>
       <button class="tab-btn"        data-tab="research">🔬 科研文献</button>
       <button class="tab-btn"        data-tab="mentor">🎓 导师带读</button>
       <button class="tab-btn"        data-tab="news">📰 全球新闻</button>
@@ -305,7 +302,6 @@ function renderSidebar() {
       <div class="di-cn">${e.day_cn}</div>
       <div class="di-dots">
         ${e.english  ? '<span class="dot">📚</span>' : ''}
-        ${e.beauty   ? '<span class="dot">💄</span>' : ''}
         ${e.research ? '<span class="dot">🔬</span>' : ''}
         ${e.mentor   ? '<span class="dot">🎓</span>' : ''}
         ${e.news     ? '<span class="dot">📰</span>' : ''}

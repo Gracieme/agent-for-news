@@ -108,33 +108,6 @@ A: ...）
 - 若对话中还有其他地道表达（如 on the fence、under the weather 等）虽未列入本日10条，请用 __双下划线__ 标出，供读者留意（非学习重点，仅作地道表达提示）"""
 
 
-BEAUTY_SYSTEM = """你是一位专业的美妆顾问与美容教育助手。
-
-用户档案：
-- 肤质：棱橄榄皮（角质层偏厚、皮肤偏黄偏暗、毛孔偏大、出油适中）
-- 脸型：圆脸（颧骨较宽、需视觉拉长收窄）
-- 预算：平价与中高端均可，优先推荐性价比高的选择
-
-输出格式（必须严格遵守，每个区块都要输出）：
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-【今日主题】（主题名称）
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-（正文：分步骤/要点展示，具体可操作，300字以上）
-
-💡 针对你的肤质/脸型：
-（专门针对棱橄榄皮+圆脸的个性化建议，至少3条）
-
-🎨 今日品牌与产品推荐：
-（必须推荐3-5款具体产品，格式：品牌名+产品名+色号（如有）+推荐理由+参考价位。
- 兼顾：①国际大牌，②平价替代，③国货品牌（如花西子、完美日记、珂拉琪、INTO YOU、colorkey等））
-
-注意事项：
-- 圆脸重点：收窄横向视觉、视觉拉长脸型
-- 棱橄榄皮底妆：提亮暗沉、控油遮孔
-- 色彩：大地色系、棕调、暖粉、砖红——避免冷粉冷紫
-- 品牌推荐要具体到产品线和色号，不能只说品牌名"""
 
 
 RESEARCH_RELEVANCE_SYSTEM = """你是一位应用语言学博士研究助手。你会根据用户当前的研究画像、活跃稿件和当天的研究主线，判断一篇真实论文到底相关在哪一层。
@@ -689,68 +662,6 @@ def gen_english(today: str, weekday: int) -> str:
     )
 
 
-def gen_beauty(today: str, weekday: int, day_cn: str) -> str:
-    # 40个细化子主题，按 day_of_year 循环，约40天不重复
-    subtopics = [
-        # 底妆技巧 × 6
-        "底妆技巧·散粉与定妆喷雾：如何让妆容持久不脱妆",
-        "底妆技巧·粉底液选色与肤色匹配（橄榄皮避坑指南）",
-        "底妆技巧·遮瑕全攻略（黑眼圈、色斑、毛孔、痘印）",
-        "底妆技巧·隔离霜与妆前乳的选择与叠涂技巧",
-        "底妆技巧·气垫 vs 粉底液 vs BB霜，适合橄榄皮的选择",
-        "底妆技巧·持妆补妆：出油后如何快速救场",
-        # 眼妆教程 × 6
-        "眼妆教程·单眼皮与内双的放大眼法（不用双眼皮贴）",
-        "眼妆教程·眼线与眼尾技巧（下垂眼、圆眼的不同画法）",
-        "眼妆教程·大地色眼影配色与晕染手法",
-        "眼妆教程·睫毛打造（睫毛膏卷翘持久 + 假睫毛选择）",
-        "眼妆教程·眉毛修型与填色（圆脸适合的眉形）",
-        "眼妆教程·卧蚕与下眼妆：提亮眼神的细节技巧",
-        # 修容高光 × 5
-        "修容高光·圆脸专属立体感打造（收窄颧骨+拉长脸型）",
-        "修容高光·高光提亮打法（鼻梁、眉弓、颧骨）",
-        "修容高光·修容粉 vs 修容膏：适合出油肌的选择",
-        "修容高光·自然日常修容：通透感而非强阴影",
-        "修容高光·小脸效果完整修容教程（圆脸适用）",
-        # 唇妆色号 × 6
-        "唇妆色号·橄榄皮显白砖红系口红推荐与搭配",
-        "唇妆色号·橄榄皮必备棕调豆沙色：色号精选",
-        "唇妆色号·口红质地深度对比（哑光/水光/丝绒/镜面）",
-        "唇妆色号·唇线笔技巧：让嘴唇更立体饱满",
-        "唇妆色号·唇部护理与打底：脱皮干纹急救方案",
-        "唇妆色号·韩系渐变唇与日系咬唇妆实操教程",
-        # 护肤成分解析 × 6
-        "护肤成分解析·烟酰胺：橄榄皮美白提亮的核心成分",
-        "护肤成分解析·水杨酸 BHA：控油收毛孔的正确用法",
-        "护肤成分解析·视黄醇/A醇：抗老淡纹的使用攻略",
-        "护肤成分解析·玻尿酸与保湿锁水成分全解析",
-        "护肤成分解析·防晒成分（物理 vs 化学）及选购指南",
-        "护肤成分解析·积雪草与神经酰胺：敏感肌屏障修护",
-        # 完整妆容教程 × 5
-        "完整妆容教程·清透日常通勤妆（15分钟快速上班妆）",
-        "完整妆容教程·约会精致感小女人妆（橄榄皮适用）",
-        "完整妆容教程·派对浓郁夜妆（高显白度色彩方案）",
-        "完整妆容教程·韩系奶油肌妆容（橄榄皮如何打造）",
-        "完整妆容教程·极简素颜感妆：三分钟高级感",
-        # 护肤小贴士 × 6
-        "护肤小贴士·早晚护肤步骤详解（橄榄皮专属顺序）",
-        "护肤小贴士·卸妆与深层清洁：大毛孔的正确清洁法",
-        "护肤小贴士·面膜使用指南（频次与类型搭配）",
-        "护肤小贴士·换季期肌肤调整：油皮秋冬保湿策略",
-        "护肤小贴士·眼霜与颈霜：什么时候开始用、怎么用",
-        "护肤小贴士·生活习惯对肌肤的影响（睡眠、饮食、运动）",
-    ]
-    now = _app_now()
-    day_of_year = now.timetuple().tm_yday
-    subtopic = subtopics[day_of_year % len(subtopics)]
-    return collect_complete(
-        BEAUTY_SYSTEM,
-        f"今天是{today}（{day_cn}）。请围绕今日细化主题「{subtopic}」，"
-        "为我提供针对棱橄榄皮+圆脸的个性化美妆内容推送。"
-        "记住：必须在【今日品牌与产品推荐】区块列出3-5款具体产品，包含品牌、产品名、色号和参考价位。",
-        max_tokens=3200,
-        required_markers=["💡 针对你的肤质/脸型：", "🎨 今日品牌与产品推荐："],
-    )
 
 
 def _openalex_search(query: str, limit: int = 3, page: int = 1) -> list:
@@ -2314,97 +2225,6 @@ def english_to_html(text: str) -> str:
     return "\n".join(parts)
 
 
-def beauty_to_html(text: str) -> str:
-    parts = []
-
-    for raw in text.splitlines():
-        s = raw.strip()
-
-        if s and all(c in "━─═-" for c in s):
-            continue
-
-        if s.startswith("【") and "】" in s:
-            close_idx = s.index("】")
-            label = s[1: close_idx]
-            suffix = s[close_idx + 1:].strip()
-            suffix_html = f'<span style="margin-left:8px;font-weight:400;color:#c2185b">{md(suffix)}</span>' if suffix else ""
-            parts.append(
-                f'<div style="background:#fce4ec;border-left:4px solid #e91e8c;'
-                f'padding:10px 16px;margin:18px 0 10px;border-radius:0 6px 6px 0">'
-                f'<strong style="color:#c2185b;font-size:15px">【{e(label)}】</strong>{suffix_html}</div>'
-            )
-            continue
-
-        # Markdown headings ## / ###
-        hm = re.match(r"^(#{1,3})\s+(.+)", s)
-        if hm:
-            level, heading = len(hm.group(1)), hm.group(2)
-            sz = {1: "17px", 2: "15px", 3: "14px"}.get(level, "14px")
-            parts.append(
-                f'<div style="color:#c2185b;font-weight:700;font-size:{sz};'
-                f'margin:16px 0 6px;padding-bottom:4px;border-bottom:1px solid #fce4ec">'
-                f'{md(heading)}</div>'
-            )
-            continue
-
-        # 💡 tip block
-        if s.startswith("💡"):
-            parts.append(
-                f'<div style="background:#fff9c4;border-left:4px solid #f9a825;'
-                f'padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0">'
-                f'<strong style="color:#e65100">{md(s)}</strong></div>'
-            )
-            continue
-
-        # 🎨 product block
-        if s.startswith("🎨"):
-            parts.append(
-                f'<div style="background:#e0f7fa;border-left:4px solid #00bcd4;'
-                f'padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0">'
-                f'<strong style="color:#006064">{md(s)}</strong></div>'
-            )
-            continue
-
-        # Numbered step
-        m = re.match(r"^(Step\s*\d+|步骤\s*\d+|\d+[.、])\s*(.+)", s)
-        if m:
-            step, content = m.group(1), m.group(2)
-            parts.append(
-                f'<div style="display:flex;align-items:flex-start;margin:8px 0;'
-                f'padding:10px 14px;background:#fdf0f7;border-radius:8px">'
-                f'<span style="color:#e91e8c;font-weight:700;min-width:70px;font-size:13px">{e(step)}</span>'
-                f'<span style="color:#333;font-size:14px;line-height:1.7">{md(content)}</span>'
-                f'</div>'
-            )
-            continue
-
-        # Bullet point
-        if re.match(r"^[-·•·]", s):
-            content = re.sub(r"^[-·•·]\s*", "", s)
-            parts.append(
-                f'<div style="padding:4px 0 4px 16px;color:#444;font-size:14px;line-height:1.7">'
-                f'<span style="color:#e91e8c;margin-right:8px">✦</span>{md(content)}</div>'
-            )
-            continue
-
-        # 注意事项
-        if s.startswith("注意") or s.startswith("⚠"):
-            parts.append(
-                f'<div style="background:#fff3e0;border-left:4px solid #ff9800;'
-                f'padding:8px 16px;margin:10px 0;border-radius:0 6px 6px 0;'
-                f'color:#bf360c;font-size:13px">{md(s)}</div>'
-            )
-            continue
-
-        if not s:
-            parts.append('<div style="height:8px"></div>')
-            continue
-
-        parts.append(
-            f'<p style="margin:6px 0;line-height:1.8;color:#333;font-size:14px">{md(s)}</p>'
-        )
-
-    return "\n".join(parts)
 
 
 def research_to_html(text: str) -> str:
@@ -2765,7 +2585,6 @@ def news_to_html(region_groups: list) -> str:
 
 def build_email_html(
     eng_html: str,
-    bty_html: str,
     res_html: str,
     news_html: str,
     date_str: str,
@@ -2821,25 +2640,6 @@ def build_email_html(
     <!-- ══ DIVIDER ══ -->
     <div style="height:6px;background:linear-gradient(90deg,#4285f4,#e91e8c,#00bcd4)"></div>
 
-    <!-- ══ BEAUTY SECTION ══ -->
-    <div style="background:#fffaf9;border-top:5px solid #e91e8c;padding:28px 32px">
-      <div style="display:flex;align-items:center;margin-bottom:20px">
-        <div style="width:48px;height:48px;background:linear-gradient(135deg,#f06292,#c2185b);
-          border-radius:12px;display:flex;align-items:center;justify-content:center;
-          font-size:22px;flex-shrink:0">💄</div>
-        <div style="margin-left:14px">
-          <h2 style="margin:0;font-size:19px;color:#c2185b;font-weight:700">美妆学习助手</h2>
-          <p style="margin:3px 0 0;font-size:12px;color:#888;letter-spacing:0.5px">
-            Beauty Assistant &nbsp;·&nbsp; 棱橄榄皮 &nbsp;·&nbsp; 圆脸
-          </p>
-        </div>
-      </div>
-      {bty_html}
-    </div>
-
-    <!-- ══ DIVIDER ══ -->
-    <div style="height:6px;background:linear-gradient(90deg,#e91e8c,#00bcd4,#667eea)"></div>
-
     <!-- ══ RESEARCH SECTION ══ -->
     <div style="background:#f9fdfd;border-top:5px solid #00bcd4;padding:28px 32px">
       <div style="display:flex;align-items:center;margin-bottom:20px">
@@ -2882,7 +2682,7 @@ def build_email_html(
         🤖 &nbsp;Powered by OpenAI GPT &nbsp;·&nbsp; Generated daily from 8:00 AM Auckland time
       </p>
       <p style="color:#666;margin:0;font-size:11px">
-        American English &nbsp;·&nbsp; 美妆护肤 &nbsp;·&nbsp; 应用语言学科研 &nbsp;·&nbsp; 全球新闻
+        American English &nbsp;·&nbsp; 应用语言学科研 &nbsp;·&nbsp; 全球新闻
       </p>
     </div>
 
@@ -3011,10 +2811,6 @@ def main():
     eng_text = gen_english(date_str, weekday)
     log.info(f"   完成，{len(eng_text)} 字符")
 
-    log.info("💄 生成美妆学习内容...")
-    bty_text = gen_beauty(date_str, weekday, day_cn)
-    log.info(f"   完成，{len(bty_text)} 字符")
-
     research_profile = _load_research_profile()
     log.info(
         "🧭 已载入研究画像：%s 条主线，活跃稿件 %s 个",
@@ -3042,12 +2838,11 @@ def main():
 
     log.info("🎨 转换为 HTML...")
     eng_html  = english_to_html(eng_text)
-    bty_html  = beauty_to_html(bty_text)
     res_html  = research_to_html(res_text)
     mentor_html = mentor_to_html(mentor_text)
     news_html = news_to_html(news_groups)
 
-    full_html = build_email_html(eng_html, bty_html, res_html, news_html, date_str, day_cn)
+    full_html = build_email_html(eng_html, res_html, news_html, date_str, day_cn)
     mentor_email_html = build_mentor_email_html(mentor_html, date_str, day_cn)
 
     subject = f"✨ 每日学习推送 · {date_str} {day_cn}"
@@ -3055,7 +2850,7 @@ def main():
 
     log.info("🏡 更新格雷西学习小屋网站...")
     date_key = now.strftime("%Y-%m-%d")
-    save_entry(date_key, date_str, day_cn, eng_html, bty_html, res_html, mentor_html, news_html)
+    save_entry(date_key, date_str, day_cn, eng_html, res_html, mentor_html, news_html)
     _save_seen_papers(research_papers, now)
     site_path, count = rebuild_site()
     log.info(f"   网站已更新 ({count} 天记录) → {site_path}")
