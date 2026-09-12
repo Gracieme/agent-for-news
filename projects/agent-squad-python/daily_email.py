@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from zoneinfo import ZoneInfo
 
-import anthropic
+import openai
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
 from build_site import DATA_DIR, save_entry, rebuild as rebuild_site
@@ -50,7 +50,21 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-client = anthropic.Anthropic()
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "").strip() or "gpt-5-mini"
+client = None
+
+
+def _get_client():
+    global client
+    if client is None:
+        if not os.environ.get("OPENAI_API_KEY", "").strip():
+            raise RuntimeError(
+                "Missing OPENAI_API_KEY. Add it to the repository's Actions secrets "
+                "or the local environment before generating daily content."
+            )
+        client = openai.OpenAI(max_retries=0, timeout=180.0)
+    return client
+
 APP_TIMEZONE = ZoneInfo(os.environ.get("APP_TIMEZONE", "America/Denver"))
 
 # ══════════════════════════════════════════════════════════════════
@@ -510,25 +524,36 @@ def _app_now() -> datetime:
     return datetime.now(APP_TIMEZONE)
 
 def _collect_once(system: str, user_prompt: str, max_tokens: int = 3500, **kwargs) -> tuple[str, str]:
-    """Call Claude API once and return (text, stop_reason)."""
+    """Call GPT and normalize the completion status for truncation retries."""
     for attempt in range(5):
         try:
-            message = client.messages.create(
-                model="claude-opus-4-6",
-                max_tokens=max_tokens,
-                system=system,
-                messages=[{"role": "user", "content": user_prompt}],
+            response = _get_client().responses.create(
+                model=OPENAI_MODEL,
+                # Responses counts reasoning tokens in the output budget too.
+                max_output_tokens=max_tokens + 4096,
+                reasoning={"effort": "low"},
+                instructions=system,
+                input=user_prompt,
+                store=False,
                 **kwargs,
             )
-            text_parts = []
-            for block in getattr(message, "content", []) or []:
-                if getattr(block, "type", None) == "text":
-                    text_parts.append(block.text)
-            return "".join(text_parts), (getattr(message, "stop_reason", None) or "")
-        except anthropic.APIStatusError as e:
-            if e.status_code in (500, 529) and attempt < 4:
+            if response.status == "incomplete":
+                reason = getattr(response.incomplete_details, "reason", None)
+                if reason == "max_output_tokens":
+                    return response.output_text, "max_tokens"
+                raise RuntimeError(f"OpenAI response incomplete: {reason}")
+            if response.status != "completed":
+                raise RuntimeError(f"OpenAI response status: {response.status}")
+            if not response.output_text.strip():
+                raise RuntimeError("OpenAI returned no text; daily content was not generated.")
+            return response.output_text, "end_turn"
+        except (openai.APIStatusError, openai.APIConnectionError) as e:
+            status = getattr(e, "status_code", None)
+            quota_exhausted = getattr(e, "code", None) == "insufficient_quota"
+            transient = status is None or status in (408, 409, 429) or status >= 500
+            if transient and not quota_exhausted and attempt < 4:
                 wait = 30 * (attempt + 1)
-                log.warning("Anthropic %d error, retrying in %ds (attempt %d/3)…", e.status_code, wait, attempt + 1)
+                log.warning("OpenAI %s error, retrying in %ds (attempt %d/5)…", status or "connection", wait, attempt + 1)
                 time.sleep(wait)
             else:
                 raise
@@ -564,7 +589,7 @@ def collect_complete(
     **kwargs,
 ) -> str:
     """
-    Retry Claude generation when output is cut off by token limits or misses
+    Retry GPT generation when output is cut off by token limits or misses
     required late-stage sections.
     """
     token_budget = max_tokens
@@ -582,7 +607,7 @@ def collect_complete(
 
         if attempt == max_attempts:
             log.warning(
-                "Claude output may be incomplete after %s attempts (stop_reason=%s, missing=%s, tail=%r)",
+                "GPT output may be incomplete after %s attempts (stop_reason=%s, missing=%s, tail=%r)",
                 attempt,
                 stop_reason,
                 missing_markers,
@@ -592,7 +617,7 @@ def collect_complete(
 
         next_budget = int(token_budget * growth_factor)
         log.warning(
-            "Claude output looked incomplete (attempt %s/%s, stop_reason=%s, missing=%s). Retrying with max_tokens=%s",
+            "GPT output looked incomplete (attempt %s/%s, stop_reason=%s, missing=%s). Retrying with max_tokens=%s",
             attempt,
             max_attempts,
             stop_reason,
@@ -2001,7 +2026,7 @@ def _fetch_rss(url: str, limit: int = 10) -> list:
 
 def gen_news(today: str) -> list:
     """
-    Fetch top-5 news per region via RSS, translate titles to Chinese with Claude,
+    Fetch top-5 news per region via RSS, translate titles to Chinese with GPT,
     and return a list of region dicts ready for news_to_html().
     Uses cross-day URL deduplication to avoid repeating articles across multiple days.
     """
@@ -2076,7 +2101,7 @@ def gen_news(today: str) -> list:
         len(newly_seen["sources"]),
     )
 
-    # Step 2: batch-translate all titles with one Claude call
+    # Step 2: batch-translate all titles with one GPT call
     all_items = []
     for region, items in region_raw.items():
         for item in items:
@@ -2105,7 +2130,7 @@ def gen_news(today: str) -> list:
         log.warning(f"   新闻翻译失败: {ex}")
         raw = ""
 
-    # Parse Claude's output
+    # Parse GPT's output
     translations: dict[int, tuple[str, str]] = {}
     for line in raw.splitlines():
         m = re.match(r"\[(\d+)\]\s*\|([^|]+)\|(.+)", line.strip())
@@ -2854,7 +2879,7 @@ def build_email_html(
     <div style="background:#2d2d2d;border-radius:0 0 14px 14px;
       padding:20px 32px;text-align:center">
       <p style="color:#aaa;margin:0 0 6px;font-size:12px">
-        🤖 &nbsp;Powered by Claude Opus 4.6 &nbsp;·&nbsp; Hits your inbox every morning at 8:00 AM Denver time
+        🤖 &nbsp;Powered by OpenAI GPT &nbsp;·&nbsp; Hits your inbox every morning at 8:00 AM Denver time
       </p>
       <p style="color:#666;margin:0;font-size:11px">
         American English &nbsp;·&nbsp; 美妆护肤 &nbsp;·&nbsp; 应用语言学科研 &nbsp;·&nbsp; 全球新闻
