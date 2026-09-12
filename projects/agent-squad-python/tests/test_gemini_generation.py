@@ -146,6 +146,10 @@ A：我们随机应变。
             daily._extract_expression_names(text),
             ["play it by ear", "read the room"],
         )
+        self.assertEqual(
+            daily._basic_expression_items(["async", "circle back", "read the room", "chock-a-block"]),
+            ["async", "circle back"],
+        )
 
     def test_dialogue_audio_uses_male_and_female_voices(self):
         inline_data = SimpleNamespace(data=b"\x00\x00" * 240)

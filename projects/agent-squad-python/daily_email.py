@@ -110,6 +110,8 @@ A: ...）
 - 每期尽量覆盖2-3个不同地区的表达，兼顾多样性
 - 不要过于书面或过时，优先选当代真实在用的表达
 - 难度定位 C1-C2：优先选择有语用色彩、语域限制或文化意味的表达，排除初级教材常见短语和只靠字面即可理解的简单搭配
+- 每一条都必须是多词表达或结构固定的复合表达；不要把 async、bandwidth 之类普通单词当作地道表达
+- 避免 circle back、take it offline、no worries、sounds good 等已经高度普及的职场套话或初级口语
 - 不得重复提示中列出的近期表达，也不要用仅有轻微词形变化的近似表达规避去重
 - 10条表达自然融入对话，不生硬
 - 若对话中还有其他地道表达（如 on the fence、under the weather 等）虽未列入本日10条，请用 __双下划线__ 标出，供读者留意（非学习重点，仅作地道表达提示）"""
@@ -659,6 +661,33 @@ def _extract_expression_names(text: str) -> list[str]:
     return expressions
 
 
+OVERLY_BASIC_EXPRESSIONS = {
+    "async",
+    "bandwidth",
+    "circle back",
+    "hard stop",
+    "hang out",
+    "no worries",
+    "piece of cake",
+    "sounds good",
+    "take care",
+    "take it offline",
+    "under the weather",
+    "what s up",
+}
+
+
+def _basic_expression_items(expressions: list[str]) -> list[str]:
+    basic = []
+    for item in expressions:
+        normalized = _normalize_expression(item)
+        word_count = len(normalized.split())
+        is_plain_single_word = word_count == 1 and "-" not in item
+        if normalized in OVERLY_BASIC_EXPRESSIONS or is_plain_single_word:
+            basic.append(item)
+    return basic
+
+
 def _extract_english_dialogue(text: str) -> str:
     match = re.search(r"【英文原文】(.*?)【中文翻译】", text, flags=re.S)
     if not match:
@@ -684,7 +713,8 @@ def gen_dialogue_audio(english_text: str, date_key: str) -> Path:
         "Perform this English conversation exactly as written. A is an adult man with a warm, "
         "natural voice. B is an adult woman with a clear, natural voice. Use contemporary "
         "conversational English, expressive reactions, realistic turn-taking, brief pauses, and "
-        "a moderate learning-friendly pace. Do not read the speaker labels aloud.\n\n" + dialogue
+        "a deliberate learning-friendly pace of about 145 to 155 words per minute. Leave brief, "
+        "natural pauses between turns. Do not read the speaker labels aloud.\n\n" + dialogue
     )
     response = _get_client().models.generate_content(
         model=GEMINI_TTS_MODEL,
@@ -817,13 +847,15 @@ def gen_english(today: str, weekday: int) -> str:
         selected = _extract_expression_names(result)
         normalized = [_normalize_expression(item) for item in selected]
         repeats = [item for item, key in zip(selected, normalized) if key in recent_normalized]
-        if len(selected) == 10 and len(set(normalized)) == 10 and not repeats:
-            log.info("   表达去重：10/10 条通过最近45天重复检查")
+        basic_items = _basic_expression_items(selected)
+        if len(selected) == 10 and len(set(normalized)) == 10 and not repeats and not basic_items:
+            log.info("   表达质量：10/10 条通过45天去重与C1-C2难度检查")
             return result
         feedback = (
             "\n\n上一版未通过质量检查，请完整重写。"
-            f"检测到表达数量为 {len(selected)}，近期重复项为 {repeats or '无'}。"
-            "必须正好10条、彼此不同、且不与近期列表重复。"
+            f"检测到表达数量为 {len(selected)}，近期重复项为 {repeats or '无'}，"
+            f"过于简单的项目为 {basic_items or '无'}。"
+            "必须正好10条、彼此不同、不与近期列表重复，并排除普通单词与常见初级套话。"
         )
         log.warning("English expression quality check failed on attempt %s; regenerating", attempt)
     raise RuntimeError("English expression selection failed repetition and completeness checks")
