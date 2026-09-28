@@ -119,13 +119,14 @@ A: ...）
 
 
 
-RESEARCH_RELEVANCE_SYSTEM = """你是一位应用语言学博士研究助手。你会根据用户当前的研究画像、活跃稿件和当天的研究主线，判断一篇真实论文到底相关在哪一层。
+RESEARCH_RELEVANCE_SYSTEM = """你是一位应用语言学博士研究助手。用户只想读真正能启发下一篇研究的文章。判断必须以用户已经发表的文章为主线，文件夹中的新稿只代表可能的延伸方向。
 
-请用 2-3 句中文完成两件事：
-1. 说明这篇论文最贴近用户哪条研究主线；
-2. 说明它最值得借鉴的是问题意识、理论框架、方法设计、结果表达或英文写法中的哪一点。
+请严格用下面三句中文输出：
+主线：说明它推进用户哪一篇已发表文章所留下的问题；如果只能连接次级新方向，要明确说“次级延伸”。
+启发点：只选择问题意识、概念工具、方法设计、证据组织或英文写法中的一个最强项，说明新在哪里。
+可迁移动作：给出一个用户读完后可直接用于下一篇论文的具体动作，例如改写研究问题、增加一种比较、改变分析单位或借用一种论证结构。
 
-不要泛泛而谈。如果只是“部分相关”或“方法层相关”，要明确说出来。只输出关联性说明，不要其他内容。"""
+禁止只因共享 translanguaging、identity、teacher 或 assessment 等关键词就宣称高度相关。不要推荐或重新包装 MICM、LRE onset、negotiation of meaning 或 CSL peer-interaction 模型。只输出三句，不要其他内容。"""
 
 
 MENTOR_SYSTEM = """你是一位应用语言学教授，也是用户的博士生导师。用户是第一年博士生，想学会如何欣赏一篇好论文、如何拆解论文结构、以及如何写出更像期刊论文的英文。
@@ -249,12 +250,12 @@ FOCUS_RESEARCH_TERMS = [
     term.strip().lower()
     for term in os.environ.get(
         "FOCUS_RESEARCH_TERMS",
-        "translanguaging",
+        "",
     ).split(",")
     if term.strip()
 ]
 
-FOCUS_RESEARCH_DAYS_PER_WEEK = int(os.environ.get("FOCUS_RESEARCH_DAYS_PER_WEEK", "6"))
+FOCUS_RESEARCH_DAYS_PER_WEEK = int(os.environ.get("FOCUS_RESEARCH_DAYS_PER_WEEK", "0"))
 ALLOW_BROAD_RESEARCH_SCAN = os.environ.get("ALLOW_BROAD_RESEARCH_SCAN", "").strip().lower() in {"1", "true", "yes"}
 
 
@@ -346,8 +347,8 @@ def _exploration_research_topics() -> list[dict]:
             "query": "classroom interaction mediation participation peer talk sociocultural theory",
             "fallback_queries": [
                 "peer interaction sociocultural theory classroom discourse",
-                "language-related episodes negotiation of meaning classroom interaction",
-                "interactional competence classroom discourse",
+                "classroom participation teacher mediation multilingual education",
+                "learner positioning classroom discourse multilingual resources",
             ],
             "anchors": [],
             "writing_focus": "看interaction数据怎么被写成机制，而不是零散例子",
@@ -391,7 +392,11 @@ def _default_research_profile() -> dict:
             "学会从摘要里拆解作者如何搭建论证",
         ],
         "active_drafts": [],
+        "published_works": [],
         "priority_papers": [],
+        "excluded_authors": [],
+        "excluded_terms": [],
+        "selection_policy": {},
         "strands": [
             {
                 "name": "Applied linguistics fallback topic",
@@ -427,6 +432,19 @@ def _load_research_profile() -> dict:
         active_drafts = raw.get("active_drafts")
         if isinstance(active_drafts, list):
             profile["active_drafts"] = [item for item in active_drafts if isinstance(item, dict)]
+        published_works = raw.get("published_works")
+        if isinstance(published_works, list):
+            profile["published_works"] = [
+                item for item in published_works
+                if isinstance(item, dict) and str(item.get("title") or "").strip()
+            ]
+        selection_policy = raw.get("selection_policy")
+        if isinstance(selection_policy, dict):
+            profile["selection_policy"] = selection_policy
+        for field in ("excluded_authors", "excluded_terms"):
+            values = raw.get(field)
+            if isinstance(values, list):
+                profile[field] = [str(item).strip() for item in values if str(item).strip()]
         priority_papers = raw.get("priority_papers")
         if isinstance(priority_papers, list):
             profile["priority_papers"] = [
@@ -445,12 +463,14 @@ def _load_research_profile() -> dict:
                     continue
                 valid_strands.append({
                     "name": name or query,
+                    "tier": str(item.get("tier") or "published_mainline").strip(),
                     "query": query,
                     "fallback_queries": item.get("fallback_queries") if isinstance(item.get("fallback_queries"), list) else [],
                     "anchors": item.get("anchors") if isinstance(item.get("anchors"), list) else [],
                     "writing_focus": str(item.get("writing_focus") or "研究问题、方法与贡献表达").strip(),
                     "why": str(item.get("why") or "").strip(),
                     "keywords": item.get("keywords") if isinstance(item.get("keywords"), list) else [],
+                    "minimum_relevance": float(item.get("minimum_relevance", 0) or 0),
                 })
         if valid_strands:
             profile["strands"] = valid_strands
@@ -479,9 +499,19 @@ def _topic_anchor_text(topic: Optional[dict], limit: int = 4) -> str:
 
 def _profile_prompt_context(profile: dict, topic: Optional[dict] = None) -> str:
     lines = [f"研究画像：{profile.get('summary', '')}"]
+    published = []
+    for work in profile.get("published_works", []):
+        if not isinstance(work, dict):
+            continue
+        title = str(work.get("title") or "").strip()
+        move = str(work.get("core_move") or "").strip()
+        if title:
+            published.append(f"{title}（{move}）" if move else title)
+    if published:
+        lines.append("已发表主线：" + "；".join(published[:5]))
     drafts = _draft_titles(profile)
     if drafts:
-        lines.append(f"活跃稿件：{'；'.join(drafts)}")
+        lines.append(f"次级延伸稿件：{'；'.join(drafts)}")
     if isinstance(topic, dict):
         lines.append(f"今日主线：{topic.get('name', '')}")
         lines.append(f"对应草稿：{_topic_anchor_text(topic)}")
@@ -865,18 +895,29 @@ def gen_english(today: str, weekday: int) -> str:
 
 def _openalex_search(query: str, limit: int = 3, page: int = 1) -> list:
     """Search OpenAlex API (no key required) and return work dicts."""
-    import urllib.request, json as _json
+    import urllib.error
+    import urllib.request
+    import json as _json
+    minimum_year = max(1900, _app_now().year - 8)
+    maximum_year = _app_now().year
     url = (
         f"https://api.openalex.org/works"
         f"?search={urllib.parse.quote(query)}"
-        f"&filter=publication_year:2019-2025"
+        f"&filter=from_publication_date:{minimum_year}-01-01,to_publication_date:{maximum_year}-12-31"
         f"&per_page={limit}&page={page}&sort=relevance_score:desc"
         f"&select=title,authorships,publication_year,abstract_inverted_index,cited_by_count,primary_location,doi"
         f"&mailto=research-emailer@example.com"
     )
     req = urllib.request.Request(url, headers={"User-Agent": "research-emailer/1.0"})
-    with urllib.request.urlopen(req, timeout=15) as r:
-        return _json.loads(r.read())["results"]
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=15) as r:
+                return _json.loads(r.read())["results"]
+        except urllib.error.HTTPError as ex:
+            if ex.code != 429 or attempt == 2:
+                raise
+            time.sleep(1.5 * (attempt + 1))
+    return []
 
 
 def _reconstruct_abstract(inverted_index: dict) -> str:
@@ -1049,6 +1090,43 @@ def _paper_search_text(paper: dict) -> str:
     ).lower()
 
 
+def _paper_authors_text(paper: dict) -> str:
+    return " ".join(
+        str((item.get("author") or {}).get("display_name") or "")
+        for item in paper.get("authorships", [])
+        if isinstance(item, dict)
+    ).lower()
+
+
+def _paper_is_profile_excluded(paper: dict, profile: Optional[dict]) -> bool:
+    """Reject the user's own work and the retired MICM research line before ranking."""
+    if not isinstance(profile, dict):
+        return False
+
+    title = _normalize_paper_title(paper.get("title", ""))
+    doi = _normalize_paper_doi(paper.get("doi", ""))
+    authors = _paper_authors_text(paper)
+    search_text = _paper_search_text(paper)
+
+    for author in profile.get("excluded_authors", []):
+        if str(author).strip().lower() in authors:
+            return True
+
+    for work in profile.get("published_works", []):
+        if not isinstance(work, dict):
+            continue
+        work_title = _normalize_paper_title(work.get("title", ""))
+        work_doi = _normalize_paper_doi(work.get("doi", ""))
+        if (work_doi and doi == work_doi) or (work_title and title == work_title):
+            return True
+
+    return any(
+        str(term).strip().lower() in search_text
+        for term in profile.get("excluded_terms", [])
+        if str(term).strip()
+    )
+
+
 def _has_digital_platform_context(text: str) -> bool:
     return any(
         marker in text
@@ -1142,6 +1220,10 @@ def _paper_topic_relevance_score(paper: dict, topic: Optional[dict]) -> float:
 
 
 def _minimum_topic_relevance(topic: Optional[dict]) -> float:
+    if isinstance(topic, dict):
+        configured = float(topic.get("minimum_relevance", 0) or 0)
+        if configured > 0:
+            return configured
     if _is_digital_focus_topic(topic):
         return 80.0
     return 34.0 if _is_focus_research_topic(topic) else 18.0
@@ -1225,6 +1307,8 @@ def _select_research_topic(today: str, profile: Optional[dict] = None) -> tuple[
     broad_topics = _exploration_research_topics()
     focus_topics = [topic for topic in core_topics if _is_focus_research_topic(topic)]
     non_focus_topics = [topic for topic in core_topics if not _is_focus_research_topic(topic)]
+    mainline_topics = [topic for topic in core_topics if topic.get("tier") == "published_mainline"]
+    extension_topics = [topic for topic in core_topics if topic.get("tier") == "emerging_extension"]
 
     if not core_topics:
         topics = _default_research_profile()["strands"]
@@ -1238,6 +1322,14 @@ def _select_research_topic(today: str, profile: Optional[dict] = None) -> tuple[
         topic_idx = (day_of_year // 14) % len(topics)
         topic = topics[topic_idx]
         page = (day_of_year // max(1, len(topics) * 14)) + 1
+    elif mainline_topics:
+        mainline_days = int((profile.get("selection_policy") or {}).get("mainline_days_per_week", 5) or 5)
+        mainline_days = max(1, min(7, mainline_days))
+        use_mainline = target_dt.weekday() < mainline_days or not extension_topics
+        topics = mainline_topics if use_mainline else extension_topics
+        topic_idx = day_of_year % len(topics)
+        topic = topics[topic_idx]
+        page = ((day_of_year // 7) % 3) + 1
     elif focus_topics and (day_of_year % 7) < max(1, min(7, FOCUS_RESEARCH_DAYS_PER_WEEK)):
         topics = focus_topics
         topic_idx = day_of_year % len(topics)
@@ -1458,6 +1550,7 @@ def _save_seen_papers(papers: list[dict], today_dt: datetime) -> None:
 
 
 def fetch_research_papers(today: str, limit: int = 3, profile: Optional[dict] = None) -> tuple[dict, list]:
+    profile = profile or _load_research_profile()
     topic, page = _select_research_topic(today, profile=profile)
     query = topic.get("query", "")
     log.info("   OpenAlex 搜索: %s | %s (第 %s 页)", topic.get("name", "研究主线"), query, page)
@@ -1467,7 +1560,9 @@ def fetch_research_papers(today: str, limit: int = 3, profile: Optional[dict] = 
 
     candidates = []
     seen_candidates = set()
-    for paper in _priority_paper_candidates(profile or {}, topic):
+    for paper in _priority_paper_candidates(profile, topic):
+        if _paper_is_profile_excluded(paper, profile):
+            continue
         keys = _paper_candidate_keys(paper)
         if keys and not any(key in seen_candidates for key in keys):
             seen_candidates.update(keys)
@@ -1475,7 +1570,7 @@ def fetch_research_papers(today: str, limit: int = 3, profile: Optional[dict] = 
     if candidates:
         log.info("   已加入导师种子文献候选: %s 篇", len(candidates))
 
-    for query_variant, query_page in _topic_query_candidates(topic, page):
+    for query_variant, query_page in _topic_query_candidates(topic, page)[:4]:
         try:
             batch = _openalex_search(query_variant, limit=max(limit * 10, 30), page=query_page)
         except Exception as ex:
@@ -1484,14 +1579,13 @@ def fetch_research_papers(today: str, limit: int = 3, profile: Optional[dict] = 
         if batch:
             log.info("   OpenAlex 备选检索命中: %s (第 %s 页) -> %s 条", query_variant, query_page, len(batch))
         for paper in batch:
+            if _paper_is_profile_excluded(paper, profile):
+                continue
             keys = _paper_candidate_keys(paper)
             if not keys or any(key in seen_candidates for key in keys):
                 continue
             seen_candidates.update(keys)
             candidates.append(paper)
-        if len(candidates) >= max(limit * 12, 36):
-            break
-
     ranked = sorted(
         candidates,
         key=lambda paper: _paper_rank_score(paper, topic),
@@ -1511,8 +1605,17 @@ def fetch_research_papers(today: str, limit: int = 3, profile: Optional[dict] = 
 
     selection_pool = fresh_ranked if len(fresh_ranked) >= limit else fresh_ranked + recent_ranked
     preferred = []
-    fallback = []
+    policy = profile.get("selection_policy") or {}
+    minimum_year = int(policy.get("minimum_publication_year", 2018) or 2018)
+    require_abstract = bool(policy.get("require_abstract", True))
     for paper in selection_pool:
+        if _paper_is_profile_excluded(paper, profile):
+            continue
+        year = int(paper.get("publication_year") or 0)
+        if year and year < minimum_year:
+            continue
+        if require_abstract and not _paper_abstract(paper):
+            continue
         if not _paper_is_topic_relevant(paper, topic):
             continue
         cites = int(paper.get("cited_by_count", 0) or 0)
@@ -1522,17 +1625,17 @@ def fetch_research_papers(today: str, limit: int = 3, profile: Optional[dict] = 
         age = max(1, current_year - year + 1)
         cite_density = cites / age
         topic_relevance = _paper_topic_relevance_score(paper, topic)
-        if topic_relevance >= 18 and (cites >= 10 or cite_density >= 4 or _is_top_research_venue(venue)):
+        relevance_floor = _minimum_topic_relevance(topic)
+        strong_quality = cites >= 10 or cite_density >= 4 or _is_top_research_venue(venue) or paper.get("_profile_seed")
+        exceptional_fit = topic_relevance >= relevance_floor + 24
+        if topic_relevance >= relevance_floor and (strong_quality or exceptional_fit):
             preferred.append(paper)
-        elif topic_relevance >= 30:
-            preferred.append(paper)
-        else:
-            fallback.append(paper)
 
-    relevant_pool = preferred + fallback
-    if not relevant_pool and selection_pool:
-        log.warning("   未找到达到相关性门槛的论文，回退到排序最高候选")
-    papers = (preferred if len(preferred) >= limit else relevant_pool or selection_pool)[:limit]
+    if not preferred:
+        log.warning("   今日没有同时通过启发性、相关性与质量门槛的论文；宁缺毋滥，不回退到弱相关候选")
+    elif len(preferred) < limit:
+        log.info("   今日仅 %s 篇通过严格门槛，少于目标 %s 篇", len(preferred), limit)
+    papers = preferred[:limit]
     if papers:
         log.info(
             "   选文优先级: %s",
@@ -1577,7 +1680,7 @@ def gen_research(
     parts = _research_intro_lines(topic)
 
     if not papers:
-        parts.append("（今日无法获取论文数据，请稍后查看）")
+        parts.append("（今天没有论文同时通过启发性、主线相关性与质量门槛。宁缺毋滥，明天再看。）")
         return "\n".join(parts)
 
     for i, paper in enumerate(papers, 1):
