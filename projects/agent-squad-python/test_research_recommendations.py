@@ -7,6 +7,15 @@ from unittest.mock import patch
 os.environ.setdefault("ANTHROPIC_API_KEY", "test-key")
 if "anthropic" not in sys.modules:
     sys.modules["anthropic"] = types.SimpleNamespace(Anthropic=lambda: object())
+if "google.genai" not in sys.modules:
+    google_module = types.ModuleType("google")
+    genai_module = types.ModuleType("google.genai")
+    genai_module.Client = lambda **kwargs: object()
+    genai_module.errors = types.SimpleNamespace(APIError=Exception)
+    genai_module.types = types.SimpleNamespace()
+    google_module.genai = genai_module
+    sys.modules["google"] = google_module
+    sys.modules["google.genai"] = genai_module
 
 import daily_email as app
 
