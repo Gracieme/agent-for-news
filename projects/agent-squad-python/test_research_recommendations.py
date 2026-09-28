@@ -94,6 +94,42 @@ class ResearchRecommendationTests(unittest.TestCase):
             _, papers = app.fetch_research_papers("2026-09-28", limit=3, profile=self.profile)
         self.assertEqual([paper["title"] for paper in papers], [strong_fit["title"]])
 
+    def test_three_papers_reserve_one_methodology_focus(self):
+        conceptual = [
+            {
+                "title": f"Conceptual paper {index}",
+                "abstract": "A conceptual discussion of multilingual justice and curriculum fairness.",
+            }
+            for index in range(3)
+        ]
+        method_rich = {
+            "title": "An institutional ethnography of multilingual assessment",
+            "abstract": "A longitudinal ethnography using interviews, observation, and discourse analysis.",
+        }
+        selected = app._select_methodology_balanced_papers(conceptual + [method_rich], 3)
+        self.assertEqual(len(selected), 3)
+        self.assertIn(method_rich, selected)
+        self.assertEqual(sum(bool(p.get("_methodology_focus")) for p in selected), 1)
+
+    def test_methodology_breakdown_is_rendered_inside_paper(self):
+        paper = {
+            "title": "A classroom ethnography",
+            "publication_year": 2026,
+            "abstract": "An ethnographic study based on classroom observation.",
+            "cited_by_count": 2,
+            "primary_location": {"source": {"display_name": "Applied Linguistics"}},
+            "doi": "https://doi.org/10.0000/method",
+            "authorships": [{"author": {"display_name": "A. Author"}}],
+        }
+        rendered = app._paper_to_text(
+            paper,
+            2,
+            "主线：测试。",
+            "研究设计：课堂民族志。\n数据与场域：课堂观察。",
+        )
+        self.assertIn("Methodology 拆解（本期方法焦点）", rendered)
+        self.assertIn("研究设计：课堂民族志", rendered)
+
 
 if __name__ == "__main__":
     unittest.main()

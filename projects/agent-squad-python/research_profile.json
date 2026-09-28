@@ -3,10 +3,12 @@
   "selection_policy": {
     "mode": "inspiration_only",
     "allow_fewer_than_limit": true,
+    "recommendations_per_run": 3,
+    "methodology_breakdowns_per_batch": 1,
     "mainline_days_per_week": 5,
     "minimum_publication_year": 2018,
     "require_abstract": true,
-    "principle": "宁缺毋滥；关键词重合不等于值得推荐。"
+    "principle": "宁缺毋滥；关键词重合不等于值得推荐。每组三篇中至少选择一篇方法信息充分的论文，单独拆解研究设计、数据、分析单位、可信度边界与可迁移动作。"
   },
   "excluded_authors": ["Gracie Jiaxin Shen", "Jiaxin Shen"],
   "excluded_terms": [

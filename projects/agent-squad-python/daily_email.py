@@ -129,6 +129,18 @@ RESEARCH_RELEVANCE_SYSTEM = """你是一位应用语言学博士研究助手。�
 禁止只因共享 translanguaging、identity、teacher 或 assessment 等关键词就宣称高度相关。不要推荐或重新包装 MICM、LRE onset、negotiation of meaning 或 CSL peer-interaction 模型。只输出三句，不要其他内容。"""
 
 
+METHODOLOGY_BREAKDOWN_SYSTEM = """你是一位严谨的应用语言学研究方法导师。请只依据题目和摘要，拆解这篇论文的方法；不得假装看过全文，不得补造样本量、时长、编码框架或信度程序。摘要没有交代的内容必须写“摘要未说明，阅读全文时重点核对”。
+
+严格输出下面五行：
+研究设计：说明研究属于什么设计，以及这个设计为何适合它的问题。
+数据与场域：列出摘要明确提到的数据、参与者或研究场域；未知就明确说未知。
+分析单位与步骤：指出作者实际分析什么，以及能从摘要确认的分析路径。
+可信度与边界：指出最值得检查的证据链、替代解释或主张边界。
+可迁移动作：给出一个用户能移植到下一篇论文的方法动作。
+
+每行最多两句，先说白话，再给必要的研究方法术语。不要输出标题、前言或额外段落。"""
+
+
 MENTOR_SYSTEM = """你是一位应用语言学教授，也是用户的博士生导师。用户是第一年博士生，想学会如何欣赏一篇好论文、如何拆解论文结构、以及如何写出更像期刊论文的英文。
 
 你会结合用户当前正在写的稿件与研究主线来带读，而不是给出泛泛的论文赏析。
@@ -1257,7 +1269,58 @@ def _paper_rank_score(paper: dict, topic: Optional[dict]) -> float:
     return quality + relevance - penalty
 
 
-def _paper_to_text(paper: dict, n: int, relevance: str) -> str:
+_METHODOLOGY_SIGNALS = (
+    ("autoethnograph", 6),
+    ("ethnograph", 6),
+    ("action research", 6),
+    ("critical discourse analysis", 6),
+    ("discourse analysis", 5),
+    ("conversation analysis", 5),
+    ("case study", 4),
+    ("mixed methods", 5),
+    ("interview", 4),
+    ("focus group", 4),
+    ("observation", 4),
+    ("corpus", 4),
+    ("thematic analysis", 4),
+    ("content analysis", 4),
+    ("longitudinal", 4),
+    ("survey", 3),
+    ("questionnaire", 3),
+    ("participant", 2),
+    ("data were", 2),
+    ("we analyzed", 2),
+    ("we analysed", 2),
+)
+
+
+def _paper_methodology_score(paper: dict) -> int:
+    """Estimate whether the abstract exposes enough method detail to teach from."""
+    text = f"{paper.get('title', '')} {_paper_abstract(paper)}".lower()
+    return sum(weight for signal, weight in _METHODOLOGY_SIGNALS if signal in text)
+
+
+def _select_methodology_balanced_papers(preferred: list[dict], limit: int) -> list[dict]:
+    """Keep relevance ranking while reserving one slot for a method-rich paper."""
+    selected = list(preferred[:limit])
+    if not selected:
+        return selected
+
+    for paper in preferred:
+        paper.pop("_methodology_focus", None)
+
+    best_method_paper = max(preferred, key=_paper_methodology_score, default=None)
+    best_score = _paper_methodology_score(best_method_paper) if best_method_paper else 0
+    if best_method_paper is not None and best_score >= 4:
+        if best_method_paper not in selected and len(selected) >= limit:
+            selected[-1] = best_method_paper
+        if best_method_paper not in selected:
+            selected.append(best_method_paper)
+        best_method_paper["_methodology_focus"] = True
+    return selected[:limit]
+
+
+def _paper_to_text(paper: dict, n: int, relevance: str, methodology: str = "") -> str:
     authors = ", ".join(
         a["author"]["display_name"]
         for a in paper.get("authorships", [])[:3]
@@ -1282,6 +1345,13 @@ def _paper_to_text(paper: dict, n: int, relevance: str) -> str:
         link_url  = f"https://scholar.google.com/scholar?q={q}"
         link_text = "Google Scholar"
 
+    methodology_block = ""
+    if methodology.strip():
+        methodology_block = (
+            "\n🔬 Methodology 拆解（本期方法焦点）\n"
+            f"{methodology.strip()}\n"
+        )
+
     return (
         f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
         f"📄 论文 {n}\n"
@@ -1294,6 +1364,7 @@ def _paper_to_text(paper: dict, n: int, relevance: str) -> str:
         f"⭐ 入选理由：{selection_reason}\n"
         f"📝 摘要：{abstract_short}\n"
         f"🔗 与本研究的关联性：{relevance}\n"
+        f"{methodology_block}"
         f"🆔 DOI：{link_text}|{link_url}\n"
         f"🏛 UMass 获取全文：{_umass_access_text(paper)}\n"
     )
@@ -1635,7 +1706,7 @@ def fetch_research_papers(today: str, limit: int = 3, profile: Optional[dict] = 
         log.warning("   今日没有同时通过启发性、相关性与质量门槛的论文；宁缺毋滥，不回退到弱相关候选")
     elif len(preferred) < limit:
         log.info("   今日仅 %s 篇通过严格门槛，少于目标 %s 篇", len(preferred), limit)
-    papers = preferred[:limit]
+    papers = _select_methodology_balanced_papers(preferred, limit)
     if papers:
         log.info(
             "   选文优先级: %s",
@@ -1699,7 +1770,18 @@ def gen_research(
             ).strip()
         except Exception:
             relevance = "（关联性分析暂不可用）"
-        parts.append(_paper_to_text(paper, i, relevance))
+        methodology = ""
+        if paper.get("_methodology_focus"):
+            try:
+                methodology = collect_complete(
+                    METHODOLOGY_BREAKDOWN_SYSTEM,
+                    f"标题：{title}\n摘要：{abstract[:900]}",
+                    max_tokens=420,
+                    max_attempts=2,
+                ).strip()
+            except Exception:
+                methodology = "研究设计：方法拆解暂不可用；请从全文方法部分核对研究设计与证据链。"
+        parts.append(_paper_to_text(paper, i, relevance, methodology))
 
     return "\n".join(parts)
 
@@ -2588,6 +2670,7 @@ def research_to_html(text: str) -> str:
         "⭐": ("#f9a825", "入选理由"),
         "📝": ("#4a148c", "摘要"),
         "🔗": ("#6a1b9a", "关联性"),
+        "🔬": ("#00695c", "Methodology 拆解"),
         "🆔": ("#37474f", "DOI"),
         "🏛": ("#5d4037", "UMass 获取全文"),
     }
