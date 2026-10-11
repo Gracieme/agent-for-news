@@ -2349,6 +2349,66 @@ def _parse_news_translations(raw: str, expected_count: int) -> dict[int, tuple[s
     return translations
 
 
+def _translate_news_batch(items: list) -> dict[int, tuple[str, str]]:
+    """Retry truncated, malformed, or incomplete JSON before accepting a batch."""
+    numbered = "\n".join(
+        f"[{i+1}] {it['title']}" for i, it in enumerate(items)
+    )
+    prompt = (
+        "下面是今日各媒体新闻标题列表，请为每条提供：\n"
+        "① 准确、自然、信息完整的中文标题（如原标题已是中文则直接保留）；\n"
+        "   人名、机构名和地名采用中文媒体常用译法，不要生硬逐字翻译；\n"
+        "② 一句话中文简介，35-55字，交代事件主体、发生了什么以及为何值得关注；\n"
+        "   若能判断该媒体立场（官方/独立/左/右/中立），\n"
+        "   可在简介末尾用括号注明，如（官方视角）（西方主流）（批评性报道）等，\n"
+        "   无法判断则不加。不得只复述标题，也不得输出英文标题作为中文标题。\n"
+        "请为每个序号返回一项，不能遗漏或改变序号。\n\n"
+        "原始标题：\n" + numbered
+    )
+    schema = {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {
+                "index": {"type": "integer"},
+                "title_cn": {"type": "string"},
+                "summary": {"type": "string"},
+            },
+            "required": ["index", "title_cn", "summary"],
+        },
+    }
+    token_budget = 4096
+    for attempt in range(3):
+        raw, stop_reason = _collect_once(
+            "你是严谨的中文新闻编辑，擅长准确翻译标题并补充有信息量的中文导读。",
+            prompt,
+            max_tokens=token_budget,
+            model=GEMINI_NEWS_MODEL,
+            response_mime_type="application/json",
+            response_json_schema=schema,
+        )
+        try:
+            if stop_reason == "max_tokens":
+                raise RuntimeError("Gemini news translation reached its token limit")
+            return _parse_news_translations(raw.strip(), len(items))
+        except RuntimeError as ex:
+            if attempt == 2:
+                raise
+            token_budget *= 2
+            log.warning("新闻翻译响应不完整，重试 %s/3（max_tokens=%s）：%s",
+                        attempt + 2, token_budget, ex)
+    raise RuntimeError("News translation retries exhausted")
+
+
+def _translate_news_items(items: list) -> dict[int, tuple[str, str]]:
+    translations = {}
+    for offset in range(0, len(items), 6):
+        batch = items[offset:offset + 6]
+        translated = _translate_news_batch(batch)
+        translations.update({offset + index: value for index, value in translated.items()})
+    return translations
+
+
 def gen_news(today: str) -> list:
     """
     Fetch top-5 news per region via RSS, translate titles to Chinese with Gemini,
@@ -2414,6 +2474,18 @@ def gen_news(today: str) -> list:
             try_collect(allow_recent_source=True, allow_stale_story=True)
         region_raw[region] = items[:5]
 
+    # Step 2: translate bounded batches and validate every response
+    all_items = []
+    for region, items in region_raw.items():
+        for item in items:
+            all_items.append({"region": region, **item})
+
+    if not all_items:
+        return []
+
+    translations = _translate_news_items(all_items)
+    log.info("   新闻翻译：%s/%s 条中文标题与导读已生成", len(translations), len(all_items))
+
     # Persist newly seen state
     seen_state["urls"].update(newly_seen["urls"])
     seen_state["titles"].update(newly_seen["titles"])
@@ -2425,54 +2497,6 @@ def gen_news(today: str) -> list:
         len(newly_seen["titles"]),
         len(newly_seen["sources"]),
     )
-
-    # Step 2: batch-translate all titles with one Gemini call
-    all_items = []
-    for region, items in region_raw.items():
-        for item in items:
-            all_items.append({"region": region, **item})
-
-    if not all_items:
-        return []
-
-    numbered = "\n".join(
-        f"[{i+1}] {it['title']}" for i, it in enumerate(all_items)
-    )
-    prompt = (
-        "下面是今日各媒体新闻标题列表，请为每条提供：\n"
-        "① 准确、自然、信息完整的中文标题（如原标题已是中文则直接保留）；\n"
-        "   人名、机构名和地名采用中文媒体常用译法，不要生硬逐字翻译；\n"
-        "② 一句话中文简介，35-55字，交代事件主体、发生了什么以及为何值得关注；\n"
-        "   若能判断该媒体立场（官方/独立/左/右/中立），\n"
-        "   可在简介末尾用括号注明，如（官方视角）（西方主流）（批评性报道）等，\n"
-        "   无法判断则不加。不得只复述标题，也不得输出英文标题作为中文标题。\n"
-        "请为每个序号返回一项，不能遗漏或改变序号。\n\n"
-        "原始标题：\n" + numbered
-    )
-    schema = {
-        "type": "array",
-        "items": {
-            "type": "object",
-            "properties": {
-                "index": {"type": "integer"},
-                "title_cn": {"type": "string"},
-                "summary": {"type": "string"},
-            },
-            "required": ["index", "title_cn", "summary"],
-        },
-    }
-    raw = collect(
-        "你是严谨的中文新闻编辑，擅长准确翻译标题并补充有信息量的中文导读。",
-        prompt,
-        max_tokens=3000,
-        model=GEMINI_NEWS_MODEL,
-        response_mime_type="application/json",
-        response_json_schema=schema,
-    ).strip()
-
-    # Parse Gemini's output
-    translations = _parse_news_translations(raw, len(all_items))
-    log.info("   新闻翻译：%s/%s 条中文标题与导读已生成", len(translations), len(all_items))
 
     # Step 3: merge translations back
     for i, item in enumerate(all_items):

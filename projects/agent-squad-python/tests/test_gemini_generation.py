@@ -126,6 +126,36 @@ class GenerationTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, r"item\(s\): 2"):
             daily._parse_news_translations(incomplete, 2)
 
+    def test_news_retries_truncated_and_missing_translations(self):
+        complete = json.dumps([
+            {"index": 1, "title_cn": "中文标题", "summary": "完整导读"}
+        ])
+        self.generate.side_effect = [
+            response('[{"index": 1', "MAX_TOKENS"),
+            response("[]"),
+            response(complete),
+        ]
+        self.assertEqual(daily._translate_news_batch([{"title": "Headline"}]),
+                         {0: ("中文标题", "完整导读")})
+        budgets = [call.kwargs["config"].max_output_tokens
+                   for call in self.generate.call_args_list]
+        self.assertEqual(budgets, [4096, 8192, 16384])
+
+    def test_news_rejects_malformed_json_after_bounded_retries(self):
+        self.generate.return_value = response('[{"index": 1')
+        with self.assertRaisesRegex(RuntimeError, "not valid JSON"):
+            daily._translate_news_batch([{"title": "Headline"}])
+        self.assertEqual(self.generate.call_count, 3)
+
+    def test_news_batch_indices_map_back_to_all_26_items(self):
+        items = [{"title": str(i)} for i in range(26)]
+        def translate(batch):
+            return {i: (item["title"], "导读") for i, item in enumerate(batch)}
+        with patch.object(daily, "_translate_news_batch", side_effect=translate) as call:
+            result = daily._translate_news_items(items)
+        self.assertEqual([len(c.args[0]) for c in call.call_args_list], [6, 6, 6, 6, 2])
+        self.assertEqual(result, {i: (str(i), "导读") for i in range(26)})
+
     def test_expression_list_and_dialogue_are_extractable(self):
         text = """【英文原文】
 A: We should play it by ear.
