@@ -135,7 +135,7 @@ class JapaneseTests(unittest.TestCase):
             for speed in ('normal', 'slow'):
                 (root / 'audio' / f'{day}-japanese-{speed}.wav').write_bytes(wav(1 if speed == 'normal' else 2))
             metadata = {'tts_provider': 'google-cloud', 'tts_model': 'chirp-3-hd', 'tts_voice_id': 'ja-JP-Chirp3-HD-Aoede'}
-            with patch.dict(os.environ, {'GOOGLE_CLOUD_TTS_API_KEY': 'test', 'GOOGLE_CHIRP_VOICE': ''}), patch.object(jp, 'WEBSITE_DIR', root), patch.object(jp, 'DATA_DIR', root / 'data'), patch.object(jp, 'LESSON_DIR', root / 'japanese'), patch.object(jp, 'chirp_audio_pair', return_value=(wav(2), wav(3), metadata)) as generate, patch.object(jp, 'gen_audio') as gemini, patch.object(jp, 'rebuild'):
+            with patch.dict(os.environ, {'GOOGLE_APPLICATION_CREDENTIALS': '/tmp/test-credentials.json', 'GOOGLE_CHIRP_VOICE': ''}), patch.object(jp, 'WEBSITE_DIR', root), patch.object(jp, 'DATA_DIR', root / 'data'), patch.object(jp, 'LESSON_DIR', root / 'japanese'), patch.object(jp, 'chirp_audio_pair', return_value=(wav(2), wav(3), metadata)) as generate, patch.object(jp, 'gen_audio') as gemini, patch.object(jp, 'rebuild'):
                 jp.publish_lesson(day)
                 jp.publish_lesson(day)
                 generate.assert_called_once_with(fixture()['sentence'])
@@ -158,7 +158,7 @@ class JapaneseTests(unittest.TestCase):
                 path = root / 'audio' / f'{day}-japanese-{speed}.wav'
                 originals[path] = wav(2 if speed == 'normal' else 3)
                 path.write_bytes(originals[path])
-            with patch.dict(os.environ, {'GOOGLE_CLOUD_TTS_API_KEY': 'test'}), patch.object(jp, 'WEBSITE_DIR', root), patch.object(jp, 'DATA_DIR', root / 'data'), patch.object(jp, 'LESSON_DIR', root / 'japanese'), patch.object(jp, 'chirp_audio_pair', side_effect=RuntimeError('HTTP 401')), patch.object(jp, 'gen_audio') as gemini, patch.object(jp, 'rebuild'):
+            with patch.dict(os.environ, {'GOOGLE_APPLICATION_CREDENTIALS': '/tmp/test-credentials.json'}), patch.object(jp, 'WEBSITE_DIR', root), patch.object(jp, 'DATA_DIR', root / 'data'), patch.object(jp, 'LESSON_DIR', root / 'japanese'), patch.object(jp, 'chirp_audio_pair', side_effect=RuntimeError('HTTP 401')), patch.object(jp, 'gen_audio') as gemini, patch.object(jp, 'rebuild'):
                 jp.publish_lesson(day)
                 gemini.assert_not_called()
             for path, original in originals.items():
@@ -186,22 +186,22 @@ class JapaneseTests(unittest.TestCase):
         self.assertEqual(metadata['tts_provider'], 'google-cloud')
         self.assertEqual(metadata['tts_model'], 'chirp-3-hd')
 
-    def test_cloud_tts_uses_dedicated_key_in_header(self):
+    def test_cloud_tts_uses_oauth_bearer_in_header(self):
         from unittest.mock import MagicMock
         fake_response = MagicMock()
         fake_response.__enter__.return_value = io.BytesIO(b'{"audioContent":"data"}')
-        with patch.dict(os.environ, {'GOOGLE_CLOUD_TTS_API_KEY': 'cloud-key', 'GEMINI_API_KEY': 'gemini-key'}), patch.object(voice.urllib.request, 'urlopen', return_value=fake_response) as call:
+        with patch.object(voice, 'access_token', return_value='oauth-token'), patch.object(voice.urllib.request, 'urlopen', return_value=fake_response) as call:
             self.assertEqual(voice.request({'input': {'text': 'こんにちは。'}}), {'audioContent': 'data'})
         req = call.call_args.args[0]
-        self.assertEqual(req.get_header('X-goog-api-key'), 'cloud-key')
-        self.assertNotIn('cloud-key', req.full_url)
+        self.assertEqual(req.get_header('Authorization'), 'Bearer oauth-token')
+        self.assertNotIn('oauth-token', req.full_url)
         self.assertEqual(req.full_url, 'https://texttospeech.googleapis.com/v1/text:synthesize')
 
     def test_cloud_api_enablement_error_is_actionable_and_redacted(self):
         from urllib.error import HTTPError
         key = 'secret-test-key'
         error = HTTPError('https://texttospeech.googleapis.com/v1/text:synthesize', 403, 'Forbidden', {}, io.BytesIO(json.dumps({'error': {'message': 'Cloud Text-to-Speech API disabled for ' + key}}).encode()))
-        with patch.dict(os.environ, {'GOOGLE_CLOUD_TTS_API_KEY': key}), patch.object(voice.urllib.request, 'urlopen', side_effect=error):
+        with patch.object(voice, 'access_token', return_value=key), patch.object(voice.urllib.request, 'urlopen', side_effect=error):
             with self.assertRaisesRegex(RuntimeError, 'API disabled') as caught:
                 voice.request({})
         self.assertNotIn(key, str(caught.exception))

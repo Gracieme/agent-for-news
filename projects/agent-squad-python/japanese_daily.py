@@ -238,13 +238,13 @@ def publish_lesson(day):
     audio_dir = WEBSITE_DIR / "audio"
     audio_dir.mkdir(parents=True, exist_ok=True)
     audio_paths = [audio_dir / f"{day}-japanese-{speed}.wav" for speed in ("normal", "slow")]
-    cloud_key = os.environ.get("GOOGLE_CLOUD_TTS_API_KEY", "").strip() or os.environ.get("GEMINI_API_KEY", "").strip()
+    cloud_credentials = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
     desired_model = "chirp-3-hd"
     desired_voice = os.environ.get("GOOGLE_CHIRP_VOICE", "").strip() or "ja-JP-Chirp3-HD-Aoede"
     needs_upgrade = (lesson.get("tts_provider") != "google-cloud" or lesson.get("tts_model") != desired_model
                      or (desired_voice and lesson.get("tts_voice_id") != desired_voice)
                      or not all(p.exists() for p in audio_paths))
-    if cloud_key and needs_upgrade:
+    if cloud_credentials and needs_upgrade:
         try:
             normal, slow, metadata = chirp_audio_pair(lesson["sentence"])
             if validate_wav(slow) < validate_wav(normal) * 1.1:
@@ -257,8 +257,8 @@ def publish_lesson(day):
             print("Japanese audio upgraded to " + desired_voice)
         except (RuntimeError, ValueError, wave.Error, EOFError) as exc:
             print(f"::warning::Google Chirp 3 HD unavailable; retaining working audio / using Gemini fallback. {exc}")
-    elif not cloud_key:
-        print("Google Chirp 3 HD key not configured; keeping current audio / Gemini fallback.")
+    elif not cloud_credentials:
+        print("::warning::Chirp 3 HD needs Google Cloud OAuth credentials (GOOGLE_CLOUD_TTS_CREDENTIALS Actions secret); retaining existing audio / Gemini fallback.")
     if lesson.get("tts_provider") == "google-cloud" and not all(p.exists() for p in audio_paths):
         # If a historical Google Chirp 3 HD pair is damaged and cannot be regenerated,
         # replace both tracks together rather than mixing speakers/providers.

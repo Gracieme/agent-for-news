@@ -7,8 +7,8 @@ N5/N4 隔日轮换，每个等级轮换 10 个基础句型，并避开最近 60 
 - 内容：`gemini-3.8-flash`；两轮生成/校对，结构校验通过后才合成音频。
 - 音频首选：Google Cloud **Chirp 3 HD**，默认日语女声 `ja-JP-Chirp3-HD-Aoede`。同一音色分别以原生 `speakingRate=1.0` 和 `0.75` 合成正常、慢速 WAV。
 - 内容密钥：沿用 Actions secret `GEMINI_API_KEY`，不发送到浏览器。
-- Cloud TTS 密钥：优先使用 Actions secret `GOOGLE_CLOUD_TTS_API_KEY`；未设置时尝试现有 `GEMINI_API_KEY`，前提是该密钥的 Cloud 项目已启用 Cloud Text-to-Speech API、具备所需计费配置且允许该 API。Gemini API 可用不代表 Cloud TTS 已启用。
-- 启用 API：[Google Cloud Text-to-Speech API](https://console.cloud.google.com/apis/library/texttospeech.googleapis.com)。需要专用密钥时在 GitHub Actions secrets 添加 `GOOGLE_CLOUD_TTS_API_KEY`。
+- Cloud TTS 使用 OAuth 身份认证，不能复用 Gemini API Key。请在 Actions secret `GOOGLE_CLOUD_TTS_CREDENTIALS` 中保存服务账号 JSON 凭据；工作流通过 `google-github-actions/auth` 提供 ADC，Python `google-auth` 获取短期访问令牌。凭据不进入网站或版本库。
+- 使用该服务账号所属的 Google Cloud 项目启用 [Cloud Text-to-Speech API](https://console.cloud.google.com/apis/library/texttospeech.googleapis.com)，并按 Google Cloud 要求配置计费和服务账号调用权限。可在 [服务账号管理](https://console.cloud.google.com/iam-admin/serviceaccounts) 获取现有服务账号的凭据；不要将 JSON 粘贴到聊天中。GitHub secret 入口：[Actions secrets](https://github.com/Gracieme/agent-for-news/settings/secrets/actions/new)。
 - 音色变量：`GOOGLE_CHIRP_VOICE`，必须为 `ja-JP-Chirp3-HD-*`。内容模型变量：`JAPANESE_MODEL`；备用语音模型：`JAPANESE_TTS_MODEL`。
 - 调用失败时保留已发布音频，必要时使用 Gemini TTS 备用。日志记录失败原因；仅成功合成并验证两版音频后才将来源标记为 Chirp 3 HD。
 - 配好 Cloud TTS 后，手动运行 `Daily Japanese + Publish Site` 即可替换当日音频，无需重新生成句子。音频哈希用于刷新缓存。无需 ElevenLabs 账户或密钥，也无需 ffmpeg。

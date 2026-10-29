@@ -8,17 +8,33 @@ import urllib.error
 import urllib.request
 
 DEFAULT_VOICE = "ja-JP-Chirp3-HD-Aoede"
+_credentials = None
+
+
+def access_token():
+    """Use ADC supplied by the GitHub Google auth action, never an API key."""
+    global _credentials
+    try:
+        import google.auth
+        from google.auth.transport.requests import Request
+        if _credentials is None:
+            _credentials, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+        if not _credentials.valid:
+            _credentials.refresh(Request())
+        if not _credentials.token:
+            raise RuntimeError("Empty Google Cloud OAuth token")
+        return _credentials.token
+    except Exception:
+        # Credential exceptions can include private-key fragments or token data.
+        raise RuntimeError("Google Cloud OAuth authentication failed; configure GOOGLE_CLOUD_TTS_CREDENTIALS in Actions secrets") from None
 
 
 def request(payload):
-    key = (os.environ.get("GOOGLE_CLOUD_TTS_API_KEY", "").strip()
-           or os.environ.get("GEMINI_API_KEY", "").strip())
-    if not key:
-        raise RuntimeError("Google Cloud Text-to-Speech API key is not configured")
+    token = access_token()
     req = urllib.request.Request(
         "https://texttospeech.googleapis.com/v1/text:synthesize",
         data=json.dumps(payload).encode(),
-        headers={"x-goog-api-key": key, "Content-Type": "application/json"},
+        headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
         method="POST",
     )
     for attempt in range(3):
@@ -31,9 +47,9 @@ def request(payload):
                 continue
             try:
                 error = json.loads(exc.read()).get("error", {})
-                message = error.get("message", "").replace(key, "[redacted]")[:1200]
+                message = error.get("message", "").replace(token, "[redacted]")[:1200]
             except (ValueError, AttributeError):
-                message = "Check Cloud Text-to-Speech API enablement, billing and API key restrictions"
+                message = "Check Cloud Text-to-Speech API enablement, billing and service account permissions"
             raise RuntimeError(f"Google Cloud TTS HTTP {exc.code}: {message}") from None
         except (urllib.error.URLError, TimeoutError):
             if attempt == 2:

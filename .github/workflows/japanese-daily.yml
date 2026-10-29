@@ -29,6 +29,8 @@ jobs:
   japanese:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      CLOUD_CREDENTIALS_CONFIGURED: ${{ secrets.GOOGLE_CLOUD_TTS_CREDENTIALS != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -36,12 +38,19 @@ jobs:
           python-version: '3.12'
       - name: Test Japanese lesson pipeline
         run: python -m unittest discover -s projects/agent-squad-python/tests -p 'test_japanese_daily.py' -v
+      - name: Authenticate to Google Cloud for Chirp 3 HD
+        id: google-auth
+        if: ${{ env.CLOUD_CREDENTIALS_CONFIGURED == 'true' }}
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GOOGLE_CLOUD_TTS_CREDENTIALS }}
+      - name: Install Google OAuth client
+        run: python -m pip install 'google-auth>=2.40,<3' 'requests>=2.32,<3'
       - name: Generate reviewed lesson and two audio recordings
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           JAPANESE_MODEL: ${{ vars.JAPANESE_MODEL || 'gemini-3.8-flash' }}
           JAPANESE_TTS_MODEL: ${{ vars.JAPANESE_TTS_MODEL || 'gemini-3.8-flash-tts' }}
-          GOOGLE_CLOUD_TTS_API_KEY: ${{ secrets.GOOGLE_CLOUD_TTS_API_KEY }}
           GOOGLE_CHIRP_VOICE: ${{ vars.GOOGLE_CHIRP_VOICE || 'ja-JP-Chirp3-HD-Aoede' }}
           TARGET_DATE: ${{ inputs.target_date }}
         run: python projects/agent-squad-python/japanese_daily.py
