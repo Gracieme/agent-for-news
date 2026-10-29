@@ -50,5 +50,9 @@
   "practice_answer": "一緒にコーヒーを飲みましょう。（いっしょにコーヒーをのみましょう。/ 我们一起喝咖啡吧。）",
   "date": "2026-10-29",
   "text_model": "gemini-3.8-flash",
-  "tts_model": "gemini-3.8-flash-tts"
+  "tts_model": "chirp-3-hd",
+  "tts_provider": "google-cloud",
+  "tts_voice_id": "ja-JP-Chirp3-HD-Aoede",
+  "slow_method": "native speakingRate=0.75",
+  "audio_revision": "591e41b8435b"
 }
