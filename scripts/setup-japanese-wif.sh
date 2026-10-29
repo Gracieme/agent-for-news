@@ -54,7 +54,7 @@ if gcloud iam workload-identity-pools providers describe "${tts_provider}" --loc
 else
   gcloud iam workload-identity-pools providers create-oidc "${tts_provider}" \
     --project="${tts_project}" --location=global --workload-identity-pool="${tts_pool}" \
-    --display-name='Main Japanese daily workflow only' \
+    --display-name='Japanese daily main' \
     --issuer-uri='https://token.actions.githubusercontent.com' \
     --attribute-mapping="${tts_mapping}" --attribute-condition="${tts_condition}"
 fi
