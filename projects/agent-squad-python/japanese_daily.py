@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Generate and publish one reviewed beginner Japanese sentence per Auckland day.
 
-Uses Gemini REST APIs so the existing English SDK integration stays independent.
+Uses Gemini and ElevenLabs REST APIs; the English SDK integration stays independent.
 No email is sent by this job. Credentials come only from the environment.
 """
 import base64
+import hashlib
 import html
 import io
 import json
@@ -19,6 +20,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from build_site import DATA_DIR, WEBSITE_DIR, rebuild
+from japanese_voice import generate_pair as elevenlabs_audio_pair
 
 TEXT_MODEL = os.environ.get("JAPANESE_MODEL", "gemini-3.8-flash")
 TTS_MODEL = os.environ.get("JAPANESE_TTS_MODEL", "gemini-3.8-flash-tts")
@@ -196,6 +198,7 @@ def gen_audio(sentence, slow=False):
 def render_lesson(lesson):
     esc = html.escape
     day = date.fromisoformat(lesson["date"]).isoformat()
+    revision = "?v=" + esc(str(lesson["audio_revision"]), quote=True) if lesson.get("audio_revision") else ""
     ruby = "".join(
         f'<ruby>{esc(t["text"])}<rp>（</rp><rt>{esc(t["reading"])}</rt><rp>）</rp></ruby>'
         if t.get("reading") else esc(t["text"]) for t in lesson["tokens"]
@@ -203,7 +206,7 @@ def render_lesson(lesson):
     vocab = "".join(f'<tr><td lang="ja">{esc(v["word"])}</td><td lang="ja">{esc(v["reading"])}</td><td>{esc(v["meaning"])}</td></tr>' for v in lesson["vocabulary"])
     players = "".join(
         f'<div class="jp-player"><label for="jp-{speed}">{label}</label>'
-        f'<audio id="jp-{speed}" controls preload="none" aria-label="{label}"><source src="audio/{day}-japanese-{speed}.wav" type="audio/wav"></audio>'
+        f'<audio id="jp-{speed}" controls preload="none" aria-label="{label}"><source src="audio/{day}-japanese-{speed}.wav{revision}" type="audio/wav"></audio>'
         f'<label class="jp-loop"><input type="checkbox" data-jp-loop="jp-{speed}"> 循环跟读</label></div>'
         for speed, label in (("normal", "正常语速"), ("slow", "慢速跟读"))
     )
@@ -234,6 +237,40 @@ def publish_lesson(day):
     path.write_text(json.dumps(lesson, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     audio_dir = WEBSITE_DIR / "audio"
     audio_dir.mkdir(parents=True, exist_ok=True)
+    audio_paths = [audio_dir / f"{day}-japanese-{speed}.wav" for speed in ("normal", "slow")]
+    eleven_key = os.environ.get("ELEVENLABS_API_KEY", "").strip()
+    desired_model = os.environ.get("ELEVENLABS_MODEL", "").strip() or "eleven_v4"
+    desired_voice = os.environ.get("ELEVENLABS_JAPANESE_VOICE_ID", "").strip()
+    needs_upgrade = (lesson.get("tts_provider") != "elevenlabs" or lesson.get("tts_model") != desired_model
+                     or (desired_voice and lesson.get("tts_voice_id") != desired_voice)
+                     or not all(p.exists() for p in audio_paths))
+    if eleven_key and needs_upgrade:
+        try:
+            normal, slow, metadata = elevenlabs_audio_pair(lesson["sentence"])
+            if validate_wav(slow) < validate_wav(normal) * 1.1:
+                raise ValueError("ElevenLabs slow track is not measurably slower")
+            # Both versions must validate before replacing a working pair.
+            for output, data in zip(audio_paths, (normal, slow)):
+                output.write_bytes(data)
+            lesson.update(metadata)
+            lesson["audio_revision"] = hashlib.sha256(normal + slow).hexdigest()[:12]
+            print("Japanese audio upgraded to ElevenLabs " + desired_model)
+        except (RuntimeError, ValueError, wave.Error, EOFError) as exc:
+            print(f"::warning::ElevenLabs unavailable; retaining working audio / using Gemini fallback. {exc}")
+    elif not eleven_key:
+        print("ElevenLabs key not configured; keeping current audio / Gemini fallback.")
+    if lesson.get("tts_provider") == "elevenlabs" and not all(p.exists() for p in audio_paths):
+        # If a historical ElevenLabs pair is damaged and cannot be regenerated,
+        # replace both tracks together rather than mixing speakers/providers.
+        normal, slow = gen_audio(lesson["sentence"]), gen_audio(lesson["sentence"], slow=True)
+        if validate_wav(slow) < validate_wav(normal) * 1.1:
+            raise RuntimeError("Fallback audio pair failed speed validation")
+        for output, data in zip(audio_paths, (normal, slow)):
+            output.write_bytes(data)
+        lesson.update(tts_provider="gemini", tts_model=TTS_MODEL)
+        lesson.pop("tts_voice_id", None)
+        lesson.pop("slow_method", None)
+        lesson["audio_revision"] = hashlib.sha256(normal + slow).hexdigest()[:12]
     durations = {}
     for speed in ("normal", "slow"):
         audio_path = audio_dir / f"{day}-japanese-{speed}.wav"
@@ -248,6 +285,7 @@ def publish_lesson(day):
             raise RuntimeError("Slow Japanese audio is not measurably slower; publication stopped")
         (audio_dir / f"{day}-japanese-slow.wav").write_bytes(data)
         durations["slow"] = validate_wav(data)
+    path.write_text(json.dumps(lesson, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     entry_path = DATA_DIR / f"{day}.json"
     entry = json.loads(entry_path.read_text(encoding="utf-8")) if entry_path.exists() else {

@@ -2,6 +2,7 @@
 import copy
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -13,6 +14,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import build_site
 import japanese_daily as jp
+import japanese_voice as voice
 
 
 def fixture(day=date(2026, 10, 29)):
@@ -121,6 +123,90 @@ class JapaneseTests(unittest.TestCase):
         with patch.object(jp, 'recent_sentences', return_value=[]), patch.object(jp, 'generate_json', side_effect=[fixture(), {'approved': False, 'issues': '读音错误'}] * 3):
             with self.assertRaisesRegex(RuntimeError, '读音错误'):
                 jp.gen_lesson(date(2026, 10, 29))
+
+    def test_elevenlabs_upgrade_reuses_sentence_and_replaces_both_tracks(self):
+        day = date(2026, 10, 29)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'japanese').mkdir()
+            (root / 'audio').mkdir()
+            lesson_path = root / 'japanese' / f'{day}.json'
+            lesson_path.write_text(json.dumps(fixture()))
+            for speed in ('normal', 'slow'):
+                (root / 'audio' / f'{day}-japanese-{speed}.wav').write_bytes(wav(1 if speed == 'normal' else 2))
+            metadata = {'tts_provider': 'elevenlabs', 'tts_model': 'eleven_v4', 'tts_voice_id': 'JapaneseVoice'}
+            with patch.dict(os.environ, {'ELEVENLABS_API_KEY': 'test', 'ELEVENLABS_MODEL': 'eleven_v4', 'ELEVENLABS_JAPANESE_VOICE_ID': ''}), patch.object(jp, 'WEBSITE_DIR', root), patch.object(jp, 'DATA_DIR', root / 'data'), patch.object(jp, 'LESSON_DIR', root / 'japanese'), patch.object(jp, 'elevenlabs_audio_pair', return_value=(wav(2), wav(3), metadata)) as generate, patch.object(jp, 'gen_audio') as gemini, patch.object(jp, 'rebuild'):
+                jp.publish_lesson(day)
+                jp.publish_lesson(day)
+                generate.assert_called_once_with(fixture()['sentence'])
+                gemini.assert_not_called()
+            saved = json.loads(lesson_path.read_text())
+            self.assertEqual(saved['tts_provider'], 'elevenlabs')
+            self.assertEqual(saved['sentence'], fixture()['sentence'])
+            entry = json.loads((root / 'data' / f'{day}.json').read_text())
+            self.assertIn('?v=' + saved['audio_revision'], entry['japanese'])
+
+    def test_elevenlabs_failure_keeps_working_pair(self):
+        day = date(2026, 10, 29)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'japanese').mkdir()
+            (root / 'audio').mkdir()
+            (root / 'japanese' / f'{day}.json').write_text(json.dumps(fixture()))
+            originals = {}
+            for speed in ('normal', 'slow'):
+                path = root / 'audio' / f'{day}-japanese-{speed}.wav'
+                originals[path] = wav(2 if speed == 'normal' else 3)
+                path.write_bytes(originals[path])
+            with patch.dict(os.environ, {'ELEVENLABS_API_KEY': 'test'}), patch.object(jp, 'WEBSITE_DIR', root), patch.object(jp, 'DATA_DIR', root / 'data'), patch.object(jp, 'LESSON_DIR', root / 'japanese'), patch.object(jp, 'elevenlabs_audio_pair', side_effect=RuntimeError('HTTP 401')), patch.object(jp, 'gen_audio') as gemini, patch.object(jp, 'rebuild'):
+                jp.publish_lesson(day)
+                gemini.assert_not_called()
+            for path, original in originals.items():
+                self.assertEqual(path.read_bytes(), original)
+            self.assertNotEqual(json.loads((root / 'japanese' / f'{day}.json').read_text()).get('tts_provider'), 'elevenlabs')
+
+    def test_voice_selection_uses_japanese_library_and_excludes_private_clones(self):
+        voices = {'voices': [
+            {'voice_id': 'private', 'category': 'cloned'},
+            {'voice_id': 'public', 'category': 'professional', 'sharing': {'status': 'enabled'}, 'labels': {'use_case': 'conversational'}},
+        ]}
+        with patch.dict(os.environ, {'ELEVENLABS_JAPANESE_VOICE_ID': ''}), patch.object(voice, 'request', return_value=json.dumps(voices).encode()) as request:
+            self.assertEqual(voice.select_voice(), 'public')
+            self.assertIn('language=ja', request.call_args.args[0])
+        with patch.dict(os.environ, {'ELEVENLABS_JAPANESE_VOICE_ID': ''}), patch.object(voice, 'request', return_value=b'{"voices": []}'):
+            with self.assertRaisesRegex(RuntimeError, 'Japanese native-speaker'):
+                voice.select_voice()
+
+    def test_elevenlabs_v4_request_and_slow_track_use_same_performance(self):
+        with patch.object(voice, 'select_voice', return_value='JapaneseVoice'), patch.object(voice, 'request', return_value=b'mp3') as request, patch.object(voice, 'convert_audio', side_effect=[wav(2), wav(3)]) as convert:
+            normal, slow, metadata = voice.generate_pair('水を飲みます。')
+            endpoint, payload = request.call_args.args
+            self.assertIn('JapaneseVoice', endpoint)
+            self.assertEqual(payload['language_code'], 'ja')
+            self.assertEqual(payload['text'], '水を飲みます。')
+            self.assertNotIn('speed', payload['voice_settings'])
+            self.assertEqual(convert.call_args_list[1].args[0], normal)
+            self.assertTrue(convert.call_args_list[1].kwargs['slow'])
+            self.assertEqual(metadata['tts_provider'], 'elevenlabs')
+
+    @unittest.skipUnless(__import__('shutil').which('ffmpeg'), 'ffmpeg not installed')
+    def test_real_pitch_preserving_slow_conversion(self):
+        import math
+        import struct
+        data = io.BytesIO()
+        with wave.open(data, 'wb') as stream:
+            stream.setnchannels(1)
+            stream.setsampwidth(2)
+            stream.setframerate(24000)
+            stream.writeframes(b''.join(struct.pack('<h', int(8000 * math.sin(2 * math.pi * 440 * i / 24000))) for i in range(48000)))
+        slow = voice.convert_audio(data.getvalue(), slow=True)
+        duration = jp.validate_wav(slow)
+        self.assertGreater(duration, 2.4)
+        self.assertLess(duration, 2.7)
+        with wave.open(io.BytesIO(slow)) as stream:
+            samples = struct.unpack('<' + 'h' * stream.getnframes(), stream.readframes(stream.getnframes()))
+        crossings = sum(left <= 0 < right for left, right in zip(samples, samples[1:]))
+        self.assertAlmostEqual(crossings / duration, 440, delta=5)
 
 
 if __name__ == '__main__':
