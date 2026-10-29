@@ -26,7 +26,7 @@ def access_token():
         return _credentials.token
     except Exception:
         # Credential exceptions can include private-key fragments or token data.
-        raise RuntimeError("Google Cloud OAuth authentication failed; configure GOOGLE_CLOUD_TTS_CREDENTIALS in Actions secrets") from None
+        raise RuntimeError("Google Cloud OAuth authentication failed; check GOOGLE_CLOUD_WIF_PROVIDER and GOOGLE_CLOUD_SERVICE_ACCOUNT repository variables and IAM trust") from None
 
 
 def request(payload):

@@ -205,6 +205,27 @@ class JapaneseTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'API disabled') as caught:
                 voice.request({})
         self.assertNotIn(key, str(caught.exception))
+    def test_keyless_cloud_setup_script_with_fake_gcloud(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            fake = root / 'gcloud'
+            fake.write_text("#!/usr/bin/env python3\nimport json,os,sys\na=sys.argv[1:]\nwith open(os.environ['TTS_TEST_LOG'],'a') as f: f.write(json.dumps(a)+'\\n')\nif a[:2]==['projects','describe']: print('123456789012')\nif 'describe' in a and 'workload-identity-pools' in a: sys.exit(1)\n")
+            fake.chmod(0o755)
+            script = Path(__file__).resolve().parents[3] / 'scripts' / 'setup-japanese-wif.sh'
+            env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ['PATH'], TTS_TEST_LOG=str(root / 'calls'))
+            result = subprocess.run(['bash', str(script)], env=env, text=True, capture_output=True, timeout=20)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('GOOGLE_CLOUD_WIF_PROVIDER=projects/123456789012/', result.stdout)
+            calls = (root / 'calls').read_text()
+            self.assertIn('1177202395', calls)
+            self.assertIn('266441586', calls)
+            self.assertIn('refs/heads/main', calls)
+            self.assertIn('japanese-daily.yml', calls)
+            self.assertIn('roles/iam.workloadIdentityUser', calls)
+            self.assertNotIn('roles/owner', calls)
+            self.assertNotIn('roles/editor', calls)
+            self.assertNotIn('org-policies', calls)
 
 
 if __name__ == '__main__':

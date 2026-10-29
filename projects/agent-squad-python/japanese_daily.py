@@ -258,7 +258,7 @@ def publish_lesson(day):
         except (RuntimeError, ValueError, wave.Error, EOFError) as exc:
             print(f"::warning::Google Chirp 3 HD unavailable; retaining working audio / using Gemini fallback. {exc}")
     elif not cloud_credentials:
-        print("::warning::Chirp 3 HD needs Google Cloud OAuth credentials (GOOGLE_CLOUD_TTS_CREDENTIALS Actions secret); retaining existing audio / Gemini fallback.")
+        print("::warning::Chirp 3 HD needs Google Cloud Workload Identity Federation (GOOGLE_CLOUD_WIF_PROVIDER and GOOGLE_CLOUD_SERVICE_ACCOUNT repository variables); retaining existing audio / Gemini fallback.")
     if lesson.get("tts_provider") == "google-cloud" and not all(p.exists() for p in audio_paths):
         # If a historical Google Chirp 3 HD pair is damaged and cannot be regenerated,
         # replace both tracks together rather than mixing speakers/providers.
