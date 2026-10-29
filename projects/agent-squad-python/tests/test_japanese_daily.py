@@ -75,7 +75,7 @@ class JapaneseTests(unittest.TestCase):
     def test_tts_sends_only_sentence_and_decodes_complete_wav(self):
         import base64
         data = wav()
-        with patch.object(jp, 'api_post', return_value={'output_audio': {'data': base64.b64encode(data).decode()}}) as request:
+        with patch.object(jp, 'api_post', return_value={'steps': [{'type': 'model_output', 'content': [{'type': 'audio', 'data': base64.b64encode(data).decode()}]}]}) as request:
             self.assertEqual(jp.gen_audio('水を飲みます。', slow=True), data)
         endpoint, payload = request.call_args.args
         self.assertEqual(endpoint, 'interactions')
@@ -83,6 +83,8 @@ class JapaneseTests(unittest.TestCase):
         self.assertEqual(content['text'], '水を飲みます。')
         self.assertIn('70', content['annotations'][0]['style'])
         self.assertEqual(payload['model'], jp.TTS_MODEL)
+        self.assertEqual(payload['generation_config']['speech_config'], [{'voice': 'Kore'}])
+        self.assertNotIn('speaker', content['annotations'][0])
         with self.assertRaises((wave.Error, EOFError)):
             jp.validate_wav(b'not a wav')
 

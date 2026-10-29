@@ -177,11 +177,15 @@ def gen_audio(sentence, slow=False):
     result = api_post("interactions", {
         "model": TTS_MODEL,
         "input": [{"type": "user_input", "content": [{"type": "text", "text": sentence,
-            "annotations": [{"type": "speech_metadata", "speaker": "Teacher", "style": style}]}]}],
+            "annotations": [{"type": "speech_metadata", "style": style}]}]}],
         "response_format": {"type": "audio", "mime_type": "audio/wav", "sample_rate": 24000},
-        "generation_config": {"speech_config": {"speakers": [{"speaker": "Teacher", "voice": "Kore"}]}},
+        "generation_config": {"speech_config": [{"voice": "Kore"}]},
     })
-    encoded = result.get("output_audio", {}).get("data")
+    # output_audio is an SDK convenience property, not a raw REST field.
+    audio_blocks = [content for step in result.get("steps", [])
+                    if step.get("type") == "model_output"
+                    for content in step.get("content", []) if content.get("type") == "audio"]
+    encoded = audio_blocks[-1].get("data") if audio_blocks else None
     if not encoded:
         raise RuntimeError("Japanese TTS returned no audio")
     data = base64.b64decode(encoded, validate=True)
