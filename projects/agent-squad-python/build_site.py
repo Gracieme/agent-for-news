@@ -22,7 +22,10 @@ def save_entry(date_key: str, date_cn: str, day_cn: str,
                news_html: str = ""):
     """Save one day's rendered HTML sections as a JSON file."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    out = DATA_DIR / f"{date_key}.json"
+    previous = json.loads(out.read_text(encoding="utf-8")) if out.exists() else {}
     entry = {
+        **previous,  # Keep independently generated Japanese when the main daily job runs.
         "date_key": date_key,
         "date_cn":  date_cn,
         "day_cn":   day_cn,
@@ -188,6 +191,30 @@ SITE_TEMPLATE = """<!DOCTYPE html>
       border-color: var(--blue); background: #e8f0fe; color: var(--blue);
       box-shadow: 0 2px 10px rgba(26,115,232,.18);
     }
+    .tab-btn[data-tab="japanese"].active { background:#fff0f3; color:#ad3159; border-color:#e5a3b6; }
+    .jp-eyebrow { color:#ad3159; font-size:13px; font-weight:700; letter-spacing:1px; }
+    .jp-lesson h2 { margin:10px 0; font-size:24px; }
+    .jp-scene, .jp-kana { color:#666; line-height:1.8; }
+    .jp-sentence { font-size:clamp(24px,4vw,36px); line-height:2.5; margin:20px 0 4px; overflow-wrap:anywhere; }
+    .jp-sentence rt { font-size:.43em; color:#ad3159; }
+    .jp-translation { font-size:18px; margin:12px 0 24px; line-height:1.8; }
+    .jp-audio { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:26px; }
+    .jp-player { flex:1 1 240px; min-width:0; background:#fff5f7; padding:14px; border-radius:12px; }
+    .jp-player > label:first-child { display:block; font-weight:700; color:#ad3159; margin-bottom:10px; }
+    .jp-player audio { width:100%; display:block; }
+    .jp-loop { display:flex; align-items:center; gap:6px; font-size:13px; margin-top:10px; cursor:pointer; }
+    .jp-lesson section { margin:24px 0; }
+    .jp-lesson h3 { font-size:17px; margin-bottom:12px; color:#733d50; }
+    .jp-lesson section p { white-space:pre-line; line-height:1.9; overflow-wrap:anywhere; }
+    .jp-structure { background:#f6f5fa; padding:14px; border-radius:8px; margin-bottom:12px; }
+    .jp-table { overflow-x:auto; }
+    .jp-table table { width:100%; border-collapse:collapse; line-height:1.7; }
+    .jp-table th, .jp-table td { padding:10px; text-align:left; border-bottom:1px solid #eee; }
+    .jp-table th { color:#733d50; background:#fff5f7; }
+    .jp-lesson details { margin-top:12px; background:#f6f5fa; padding:14px; border-radius:8px; }
+    .jp-lesson summary { cursor:pointer; color:#733d50; font-weight:600; }
+    .jp-lesson details p { margin-top:12px; }
+    .jp-note { color:#888; font-size:12px; line-height:1.8; border-top:1px solid #eee; padding-top:16px; }
     .tab-btn[data-tab="research"].active {
       border-color: var(--teal); background: #e0f7fa; color: var(--teal);
       box-shadow: 0 2px 10px rgba(0,131,143,.18);
@@ -248,6 +275,7 @@ SITE_TEMPLATE = """<!DOCTYPE html>
   <main class="main">
     <div class="tab-bar" id="tab-bar">
       <button class="tab-btn active" data-tab="english">📚 英语表达</button>
+      <button class="tab-btn"        data-tab="japanese">🇯🇵 每日一句日语</button>
       <button class="tab-btn"        data-tab="research">🔬 科研文献</button>
       <button class="tab-btn"        data-tab="mentor">🎓 导师带读</button>
       <button class="tab-btn"        data-tab="news">📰 全球新闻</button>
@@ -267,9 +295,10 @@ SITE_TEMPLATE = """<!DOCTYPE html>
 const ENTRIES = __ENTRIES_JSON__;
 
 let selIdx = ENTRIES.length > 0 ? 0 : -1;
-let selTab = 'english';
+let selTab = ENTRIES[selIdx]?.japanese ? 'japanese' : 'english';
 
 const EMPTY_TAB_HTML = {
+  japanese: `<div class="center-msg"><div class="big">🇯🇵</div>这一天尚未收录日语句子。<br>请选择最新日期，查看 N5 / N4 每日一句、假名、语法拆解和两种语速音频。</div>`,
   mentor: `
     <div class="center-msg" style="color:#90a4ae">
       <div class="big">🎓</div>
@@ -301,6 +330,7 @@ function renderSidebar() {
       <div class="di-cn">${e.day_cn}</div>
       <div class="di-dots">
         ${e.english  ? '<span class="dot">📚</span>' : ''}
+        ${e.japanese ? '<span class="dot">🇯🇵</span>' : ''}
         ${e.research ? '<span class="dot">🔬</span>' : ''}
         ${e.mentor   ? '<span class="dot">🎓</span>' : ''}
         ${e.news     ? '<span class="dot">📰</span>' : ''}
@@ -340,7 +370,21 @@ document.getElementById('tab-bar').addEventListener('click', e => {
   renderContent();
 });
 
+document.getElementById('content-panel').addEventListener('change', e => {
+  if (!e.target.matches('[data-jp-loop]')) return;
+  const audio = document.getElementById(e.target.dataset.jpLoop);
+  if (audio) audio.loop = e.target.checked;
+});
+// Keep the two versions from talking over each other.
+document.getElementById('content-panel').addEventListener('play', e => {
+  if (e.target.tagName !== 'AUDIO') return;
+  document.querySelectorAll('#content-panel audio').forEach(audio => {
+    if (audio !== e.target) audio.pause();
+  });
+}, true);
+
 /* ── Init ── */
+document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === selTab));
 renderSidebar();
 renderContent();
 </script>

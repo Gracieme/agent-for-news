@@ -16,6 +16,10 @@ on:
 permissions:
   contents: write            # 允许 workflow 把生成的网站文件 commit 回仓库
 
+concurrency:
+  group: daily-site-publish
+  cancel-in-progress: false
+
 jobs:
   send-and-publish:
     runs-on: ubuntu-latest
