@@ -124,7 +124,7 @@ class JapaneseTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, '读音错误'):
                 jp.gen_lesson(date(2026, 10, 29))
 
-    def test_elevenlabs_upgrade_reuses_sentence_and_replaces_both_tracks(self):
+    def test_chirp_upgrade_reuses_sentence_and_replaces_both_tracks(self):
         day = date(2026, 10, 29)
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -134,19 +134,19 @@ class JapaneseTests(unittest.TestCase):
             lesson_path.write_text(json.dumps(fixture()))
             for speed in ('normal', 'slow'):
                 (root / 'audio' / f'{day}-japanese-{speed}.wav').write_bytes(wav(1 if speed == 'normal' else 2))
-            metadata = {'tts_provider': 'elevenlabs', 'tts_model': 'eleven_v4', 'tts_voice_id': 'JapaneseVoice'}
-            with patch.dict(os.environ, {'ELEVENLABS_API_KEY': 'test', 'ELEVENLABS_MODEL': 'eleven_v4', 'ELEVENLABS_JAPANESE_VOICE_ID': ''}), patch.object(jp, 'WEBSITE_DIR', root), patch.object(jp, 'DATA_DIR', root / 'data'), patch.object(jp, 'LESSON_DIR', root / 'japanese'), patch.object(jp, 'elevenlabs_audio_pair', return_value=(wav(2), wav(3), metadata)) as generate, patch.object(jp, 'gen_audio') as gemini, patch.object(jp, 'rebuild'):
+            metadata = {'tts_provider': 'google-cloud', 'tts_model': 'chirp-3-hd', 'tts_voice_id': 'ja-JP-Chirp3-HD-Aoede'}
+            with patch.dict(os.environ, {'GOOGLE_CLOUD_TTS_API_KEY': 'test', 'GOOGLE_CHIRP_VOICE': ''}), patch.object(jp, 'WEBSITE_DIR', root), patch.object(jp, 'DATA_DIR', root / 'data'), patch.object(jp, 'LESSON_DIR', root / 'japanese'), patch.object(jp, 'chirp_audio_pair', return_value=(wav(2), wav(3), metadata)) as generate, patch.object(jp, 'gen_audio') as gemini, patch.object(jp, 'rebuild'):
                 jp.publish_lesson(day)
                 jp.publish_lesson(day)
                 generate.assert_called_once_with(fixture()['sentence'])
                 gemini.assert_not_called()
             saved = json.loads(lesson_path.read_text())
-            self.assertEqual(saved['tts_provider'], 'elevenlabs')
+            self.assertEqual(saved['tts_provider'], 'google-cloud')
             self.assertEqual(saved['sentence'], fixture()['sentence'])
             entry = json.loads((root / 'data' / f'{day}.json').read_text())
             self.assertIn('?v=' + saved['audio_revision'], entry['japanese'])
 
-    def test_elevenlabs_failure_keeps_working_pair(self):
+    def test_chirp_failure_keeps_working_pair(self):
         day = date(2026, 10, 29)
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -158,55 +158,53 @@ class JapaneseTests(unittest.TestCase):
                 path = root / 'audio' / f'{day}-japanese-{speed}.wav'
                 originals[path] = wav(2 if speed == 'normal' else 3)
                 path.write_bytes(originals[path])
-            with patch.dict(os.environ, {'ELEVENLABS_API_KEY': 'test'}), patch.object(jp, 'WEBSITE_DIR', root), patch.object(jp, 'DATA_DIR', root / 'data'), patch.object(jp, 'LESSON_DIR', root / 'japanese'), patch.object(jp, 'elevenlabs_audio_pair', side_effect=RuntimeError('HTTP 401')), patch.object(jp, 'gen_audio') as gemini, patch.object(jp, 'rebuild'):
+            with patch.dict(os.environ, {'GOOGLE_CLOUD_TTS_API_KEY': 'test'}), patch.object(jp, 'WEBSITE_DIR', root), patch.object(jp, 'DATA_DIR', root / 'data'), patch.object(jp, 'LESSON_DIR', root / 'japanese'), patch.object(jp, 'chirp_audio_pair', side_effect=RuntimeError('HTTP 401')), patch.object(jp, 'gen_audio') as gemini, patch.object(jp, 'rebuild'):
                 jp.publish_lesson(day)
                 gemini.assert_not_called()
             for path, original in originals.items():
                 self.assertEqual(path.read_bytes(), original)
-            self.assertNotEqual(json.loads((root / 'japanese' / f'{day}.json').read_text()).get('tts_provider'), 'elevenlabs')
+            self.assertNotEqual(json.loads((root / 'japanese' / f'{day}.json').read_text()).get('tts_provider'), 'google-cloud')
 
-    def test_voice_selection_uses_japanese_library_and_excludes_private_clones(self):
-        voices = {'voices': [
-            {'voice_id': 'private', 'category': 'cloned'},
-            {'voice_id': 'public', 'category': 'professional', 'sharing': {'status': 'enabled'}, 'labels': {'use_case': 'conversational'}},
-        ]}
-        with patch.dict(os.environ, {'ELEVENLABS_JAPANESE_VOICE_ID': ''}), patch.object(voice, 'request', return_value=json.dumps(voices).encode()) as request:
-            self.assertEqual(voice.select_voice(), 'public')
-            self.assertIn('language=ja', request.call_args.args[0])
-        with patch.dict(os.environ, {'ELEVENLABS_JAPANESE_VOICE_ID': ''}), patch.object(voice, 'request', return_value=b'{"voices": []}'):
-            with self.assertRaisesRegex(RuntimeError, 'Japanese native-speaker'):
-                voice.select_voice()
+    def test_chirp_restricts_voice_to_japanese_hd(self):
+        with patch.dict(os.environ, {'GOOGLE_CHIRP_VOICE': ''}):
+            self.assertEqual(voice.voice_name(), 'ja-JP-Chirp3-HD-Aoede')
+        with patch.dict(os.environ, {'GOOGLE_CHIRP_VOICE': 'en-US-Chirp3-HD-Aoede'}):
+            with self.assertRaises(ValueError):
+                voice.voice_name()
 
-    def test_elevenlabs_v4_request_and_slow_track_use_same_performance(self):
-        with patch.object(voice, 'select_voice', return_value='JapaneseVoice'), patch.object(voice, 'request', return_value=b'mp3') as request, patch.object(voice, 'convert_audio', side_effect=[wav(2), wav(3)]) as convert:
+    def test_chirp_uses_native_pace_and_same_japanese_voice(self):
+        import base64
+        responses = [{'audioContent': base64.b64encode(wav(n)).decode()} for n in (2, 3)]
+        with patch.dict(os.environ, {'GOOGLE_CHIRP_VOICE': ''}), patch.object(voice, 'request', side_effect=responses) as request:
             normal, slow, metadata = voice.generate_pair('水を飲みます。')
-            endpoint, payload = request.call_args.args
-            self.assertIn('JapaneseVoice', endpoint)
-            self.assertEqual(payload['language_code'], 'ja')
-            self.assertEqual(payload['text'], '水を飲みます。')
-            self.assertNotIn('speed', payload['voice_settings'])
-            self.assertEqual(convert.call_args_list[1].args[0], normal)
-            self.assertTrue(convert.call_args_list[1].kwargs['slow'])
-            self.assertEqual(metadata['tts_provider'], 'elevenlabs')
+        calls = [call.args[0] for call in request.call_args_list]
+        self.assertEqual([p['audioConfig']['speakingRate'] for p in calls], [1.0, 0.75])
+        self.assertTrue(all(p['voice'] == {'languageCode': 'ja-JP', 'name': 'ja-JP-Chirp3-HD-Aoede'} for p in calls))
+        self.assertTrue(all(p['input'] == {'text': '水を飲みます。'} for p in calls))
+        self.assertEqual(jp.validate_wav(normal), 2)
+        self.assertEqual(jp.validate_wav(slow), 3)
+        self.assertEqual(metadata['tts_provider'], 'google-cloud')
+        self.assertEqual(metadata['tts_model'], 'chirp-3-hd')
 
-    @unittest.skipUnless(__import__('shutil').which('ffmpeg'), 'ffmpeg not installed')
-    def test_real_pitch_preserving_slow_conversion(self):
-        import math
-        import struct
-        data = io.BytesIO()
-        with wave.open(data, 'wb') as stream:
-            stream.setnchannels(1)
-            stream.setsampwidth(2)
-            stream.setframerate(24000)
-            stream.writeframes(b''.join(struct.pack('<h', int(8000 * math.sin(2 * math.pi * 440 * i / 24000))) for i in range(48000)))
-        slow = voice.convert_audio(data.getvalue(), slow=True)
-        duration = jp.validate_wav(slow)
-        self.assertGreater(duration, 2.4)
-        self.assertLess(duration, 2.7)
-        with wave.open(io.BytesIO(slow)) as stream:
-            samples = struct.unpack('<' + 'h' * stream.getnframes(), stream.readframes(stream.getnframes()))
-        crossings = sum(left <= 0 < right for left, right in zip(samples, samples[1:]))
-        self.assertAlmostEqual(crossings / duration, 440, delta=5)
+    def test_cloud_tts_uses_dedicated_key_in_header(self):
+        from unittest.mock import MagicMock
+        fake_response = MagicMock()
+        fake_response.__enter__.return_value = io.BytesIO(b'{"audioContent":"data"}')
+        with patch.dict(os.environ, {'GOOGLE_CLOUD_TTS_API_KEY': 'cloud-key', 'GEMINI_API_KEY': 'gemini-key'}), patch.object(voice.urllib.request, 'urlopen', return_value=fake_response) as call:
+            self.assertEqual(voice.request({'input': {'text': 'こんにちは。'}}), {'audioContent': 'data'})
+        req = call.call_args.args[0]
+        self.assertEqual(req.get_header('X-goog-api-key'), 'cloud-key')
+        self.assertNotIn('cloud-key', req.full_url)
+        self.assertEqual(req.full_url, 'https://texttospeech.googleapis.com/v1/text:synthesize')
+
+    def test_cloud_api_enablement_error_is_actionable_and_redacted(self):
+        from urllib.error import HTTPError
+        key = 'secret-test-key'
+        error = HTTPError('https://texttospeech.googleapis.com/v1/text:synthesize', 403, 'Forbidden', {}, io.BytesIO(json.dumps({'error': {'message': 'Cloud Text-to-Speech API disabled for ' + key}}).encode()))
+        with patch.dict(os.environ, {'GOOGLE_CLOUD_TTS_API_KEY': key}), patch.object(voice.urllib.request, 'urlopen', side_effect=error):
+            with self.assertRaisesRegex(RuntimeError, 'API disabled') as caught:
+                voice.request({})
+        self.assertNotIn(key, str(caught.exception))
 
 
 if __name__ == '__main__':

@@ -34,12 +34,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Ensure audio conversion tool
-        run: |
-          if ! command -v ffmpeg >/dev/null; then
-            sudo apt-get update
-            sudo apt-get install -y ffmpeg
-          fi
       - name: Test Japanese lesson pipeline
         run: python -m unittest discover -s projects/agent-squad-python/tests -p 'test_japanese_daily.py' -v
       - name: Generate reviewed lesson and two audio recordings
@@ -47,9 +41,8 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           JAPANESE_MODEL: ${{ vars.JAPANESE_MODEL || 'gemini-3.8-flash' }}
           JAPANESE_TTS_MODEL: ${{ vars.JAPANESE_TTS_MODEL || 'gemini-3.8-flash-tts' }}
-          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
-          ELEVENLABS_MODEL: ${{ vars.ELEVENLABS_MODEL || 'eleven_v4' }}
-          ELEVENLABS_JAPANESE_VOICE_ID: ${{ vars.ELEVENLABS_JAPANESE_VOICE_ID }}
+          GOOGLE_CLOUD_TTS_API_KEY: ${{ secrets.GOOGLE_CLOUD_TTS_API_KEY }}
+          GOOGLE_CHIRP_VOICE: ${{ vars.GOOGLE_CHIRP_VOICE || 'ja-JP-Chirp3-HD-Aoede' }}
           TARGET_DATE: ${{ inputs.target_date }}
         run: python projects/agent-squad-python/japanese_daily.py
       - name: Publish to GitHub Pages source

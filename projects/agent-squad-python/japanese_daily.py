@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate and publish one reviewed beginner Japanese sentence per Auckland day.
 
-Uses Gemini and ElevenLabs REST APIs; the English SDK integration stays independent.
+Uses Gemini and Google Cloud Text-to-Speech REST APIs; the English SDK integration stays independent.
 No email is sent by this job. Credentials come only from the environment.
 """
 import base64
@@ -20,7 +20,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from build_site import DATA_DIR, WEBSITE_DIR, rebuild
-from japanese_voice import generate_pair as elevenlabs_audio_pair
+from japanese_voice import generate_pair as chirp_audio_pair
 
 TEXT_MODEL = os.environ.get("JAPANESE_MODEL", "gemini-3.8-flash")
 TTS_MODEL = os.environ.get("JAPANESE_TTS_MODEL", "gemini-3.8-flash-tts")
@@ -238,29 +238,29 @@ def publish_lesson(day):
     audio_dir = WEBSITE_DIR / "audio"
     audio_dir.mkdir(parents=True, exist_ok=True)
     audio_paths = [audio_dir / f"{day}-japanese-{speed}.wav" for speed in ("normal", "slow")]
-    eleven_key = os.environ.get("ELEVENLABS_API_KEY", "").strip()
-    desired_model = os.environ.get("ELEVENLABS_MODEL", "").strip() or "eleven_v4"
-    desired_voice = os.environ.get("ELEVENLABS_JAPANESE_VOICE_ID", "").strip()
-    needs_upgrade = (lesson.get("tts_provider") != "elevenlabs" or lesson.get("tts_model") != desired_model
+    cloud_key = os.environ.get("GOOGLE_CLOUD_TTS_API_KEY", "").strip() or os.environ.get("GEMINI_API_KEY", "").strip()
+    desired_model = "chirp-3-hd"
+    desired_voice = os.environ.get("GOOGLE_CHIRP_VOICE", "").strip() or "ja-JP-Chirp3-HD-Aoede"
+    needs_upgrade = (lesson.get("tts_provider") != "google-cloud" or lesson.get("tts_model") != desired_model
                      or (desired_voice and lesson.get("tts_voice_id") != desired_voice)
                      or not all(p.exists() for p in audio_paths))
-    if eleven_key and needs_upgrade:
+    if cloud_key and needs_upgrade:
         try:
-            normal, slow, metadata = elevenlabs_audio_pair(lesson["sentence"])
+            normal, slow, metadata = chirp_audio_pair(lesson["sentence"])
             if validate_wav(slow) < validate_wav(normal) * 1.1:
-                raise ValueError("ElevenLabs slow track is not measurably slower")
+                raise ValueError("Google Chirp 3 HD slow track is not measurably slower")
             # Both versions must validate before replacing a working pair.
             for output, data in zip(audio_paths, (normal, slow)):
                 output.write_bytes(data)
             lesson.update(metadata)
             lesson["audio_revision"] = hashlib.sha256(normal + slow).hexdigest()[:12]
-            print("Japanese audio upgraded to ElevenLabs " + desired_model)
+            print("Japanese audio upgraded to " + desired_voice)
         except (RuntimeError, ValueError, wave.Error, EOFError) as exc:
-            print(f"::warning::ElevenLabs unavailable; retaining working audio / using Gemini fallback. {exc}")
-    elif not eleven_key:
-        print("ElevenLabs key not configured; keeping current audio / Gemini fallback.")
-    if lesson.get("tts_provider") == "elevenlabs" and not all(p.exists() for p in audio_paths):
-        # If a historical ElevenLabs pair is damaged and cannot be regenerated,
+            print(f"::warning::Google Chirp 3 HD unavailable; retaining working audio / using Gemini fallback. {exc}")
+    elif not cloud_key:
+        print("Google Chirp 3 HD key not configured; keeping current audio / Gemini fallback.")
+    if lesson.get("tts_provider") == "google-cloud" and not all(p.exists() for p in audio_paths):
+        # If a historical Google Chirp 3 HD pair is damaged and cannot be regenerated,
         # replace both tracks together rather than mixing speakers/providers.
         normal, slow = gen_audio(lesson["sentence"]), gen_audio(lesson["sentence"], slow=True)
         if validate_wav(slow) < validate_wav(normal) * 1.1:
