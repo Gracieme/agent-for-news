@@ -24,9 +24,16 @@ def access_token():
         if not _credentials.token:
             raise RuntimeError("Empty Google Cloud OAuth token")
         return _credentials.token
-    except Exception:
-        # Credential exceptions can include private-key fragments or token data.
-        raise RuntimeError("Google Cloud OAuth authentication failed; check GOOGLE_CLOUD_WIF_PROVIDER and GOOGLE_CLOUD_SERVICE_ACCOUNT repository variables and IAM trust") from None
+    except Exception as exc:
+        # Include only structured OAuth error descriptions, never credential
+        # files, token payloads or arbitrary exception arguments.
+        reason = type(exc).__name__
+        for item in getattr(exc, "args", ()):
+            if isinstance(item, dict):
+                details = " ".join(str(item.get(k, "")) for k in ("error", "error_description"))
+                details = re.sub(r"[A-Za-z0-9_-]{30,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+", "[redacted JWT]", details)
+                reason += ": " + details[:1000]
+        raise RuntimeError("Google Cloud OAuth authentication failed (" + reason + "); check WIF variables and IAM trust") from None
 
 
 def request(payload):
