@@ -1,0 +1,75 @@
+{
+  "level": "N5",
+  "target": "～が好きです",
+  "scene": "在水果店前与朋友闲聊时，表达自己对特定季节食物的喜好",
+  "sentence": "私は秋の果物が好きです。",
+  "kana": "わたしはあきのくだものがすきです。",
+  "tokens": [
+    {
+      "text": "私",
+      "reading": "わたし"
+    },
+    {
+      "text": "は",
+      "reading": ""
+    },
+    {
+      "text": "秋",
+      "reading": "あき"
+    },
+    {
+      "text": "の",
+      "reading": ""
+    },
+    {
+      "text": "果物",
+      "reading": "くだもの"
+    },
+    {
+      "text": "が",
+      "reading": ""
+    },
+    {
+      "text": "好き",
+      "reading": "すき"
+    },
+    {
+      "text": "です。",
+      "reading": ""
+    }
+  ],
+  "translation": "我喜欢秋天的水果。",
+  "structure": "「私は」（主题/大主语）+「秋の果物」（所属修饰语＋喜爱对象）+「が」（对象助词）+「好きです」（谓语），句中明确陈述自己的喜好。",
+  "grammar": "重点句型「～が好きです」表示“喜欢……”。接续为「名词＋が好きです」。「好き」是二类形容词（形容动词），表示情感倾向，所喜欢的对象不使用宾格助词「を」，而必须使用格助词「が」来提示。助词「は」提示说话的主体「私」；助词「の」连接两个名词「秋」和「果物」，表示属性与限定（秋天的）。句尾接判断助动词「です」构成礼貌体（敬体），使语气温和客气。",
+  "vocabulary": [
+    {
+      "word": "私",
+      "reading": "わたし",
+      "meaning": "我（代词）"
+    },
+    {
+      "word": "秋",
+      "reading": "あき",
+      "meaning": "秋天、秋季（名词）"
+    },
+    {
+      "word": "果物",
+      "reading": "くだもの",
+      "meaning": "水果（名词）"
+    },
+    {
+      "word": "好き",
+      "reading": "すき",
+      "meaning": "喜欢、爱好（二类形容词）"
+    }
+  ],
+  "practice": "请用「～が好きです」翻译：我喜欢日本料理。",
+  "practice_answer": "私は日本料理が好きです。（わたしはにほんりょうりがすきです。/ 我喜欢日本料理。）",
+  "date": "2026-10-31",
+  "text_model": "gemini-3.8-flash",
+  "tts_model": "chirp-3-hd",
+  "tts_provider": "google-cloud",
+  "tts_voice_id": "ja-JP-Chirp3-HD-Aoede",
+  "slow_method": "native speakingRate=0.75",
+  "audio_revision": "70de96827412"
+}
