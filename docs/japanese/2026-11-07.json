@@ -1,0 +1,79 @@
+{
+  "level": "N4",
+  "target": "～と思います",
+  "scene": "讨论明天的天气",
+  "sentence": "明日は雨が降ると思います。",
+  "kana": "あしたはあめがふるとおもいます。",
+  "tokens": [
+    {
+      "text": "明日",
+      "reading": "あした"
+    },
+    {
+      "text": "は",
+      "reading": ""
+    },
+    {
+      "text": "雨",
+      "reading": "あめ"
+    },
+    {
+      "text": "が",
+      "reading": ""
+    },
+    {
+      "text": "降る",
+      "reading": "ふる"
+    },
+    {
+      "text": "と",
+      "reading": ""
+    },
+    {
+      "text": "思い",
+      "reading": "おもい"
+    },
+    {
+      "text": "ます",
+      "reading": ""
+    },
+    {
+      "text": "。",
+      "reading": ""
+    }
+  ],
+  "translation": "我觉得明天会下雨。",
+  "structure": "「明日は」（时间状语/主题）+「雨が」（思考内容中的主语）+「降る」（思考内容中的谓语）+「と思います」（全句谓语，主语「私」已省略）。",
+  "grammar": "助词「は」提示全句讨论的时间与主题；助词「が」用于从句中提示主语，常用于描写自然现象（雨）。重点句型「～と思います」表示说话人自己的看法、意见或推测，意为“我认为……”或“我觉得……”。该句型前必须接续普通形（简体）。句中动词「降る」为一类动词基本形（辞书形），直接接引用助词「と」，最后接表示思考的动词「思います」（由原形「思う」的连用形「思い」加上礼貌体「ます」构成）。",
+  "vocabulary": [
+    {
+      "word": "明日",
+      "reading": "あした",
+      "meaning": "明天（名词）"
+    },
+    {
+      "word": "雨",
+      "reading": "あめ",
+      "meaning": "雨、雨水（名词）"
+    },
+    {
+      "word": "降る",
+      "reading": "ふる",
+      "meaning": "下（雨、雪）（一类动词，自动词）"
+    },
+    {
+      "word": "思う",
+      "reading": "おもう",
+      "meaning": "想、觉得、认为（一类动词，他动词）"
+    }
+  ],
+  "practice": "请用本日句型翻译造句：我觉得今天很冷。（提示词：今日/きょう、寒い/さむい）",
+  "practice_answer": "今日は寒いと思います。（きょうはさむいとおもいます。/ 我觉得今天很冷。）",
+  "date": "2026-11-07",
+  "text_model": "gemini-3.8-flash",
+  "tts_model": "chirp-3-hd",
+  "tts_provider": "google-cloud",
+  "tts_voice_id": "ja-JP-Chirp3-HD-Aoede",
+  "slow_method": "native speakingRate=0.75",
+  "audio_revision": "6cc51b9e114f"
+}
