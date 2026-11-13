@@ -1,0 +1,83 @@
+{
+  "level": "N4",
+  "target": "～ながら",
+  "scene": "早晨日常习惯",
+  "sentence": "毎朝、音楽を聞きながら散歩をします。",
+  "kana": "まいあさ、おんがくをききながらさんぽをします。",
+  "tokens": [
+    {
+      "text": "毎朝",
+      "reading": "まいあさ"
+    },
+    {
+      "text": "、",
+      "reading": ""
+    },
+    {
+      "text": "音楽",
+      "reading": "おんがく"
+    },
+    {
+      "text": "を",
+      "reading": ""
+    },
+    {
+      "text": "聞き",
+      "reading": "きき"
+    },
+    {
+      "text": "ながら",
+      "reading": ""
+    },
+    {
+      "text": "散歩",
+      "reading": "さんぽ"
+    },
+    {
+      "text": "を",
+      "reading": ""
+    },
+    {
+      "text": "します",
+      "reading": ""
+    },
+    {
+      "text": "。",
+      "reading": ""
+    }
+  ],
+  "translation": "我每天早上一边听音乐一边散步。",
+  "structure": "[毎朝]（时间状语）＋[音楽を 聞きながら]（伴随动作，修饰主要动作）＋[散歩を]（宾语）＋[します]（谓语）。句首省略了动作主体「私は」（我）。",
+  "grammar": "句型「～ながら」表示同一主体在同一时间内同时进行两个动作，后项动词为主动作。其接续方式为动词ます形去掉「ます」接「ながら」。句中五段动词原形「聞く」→ ます形「聞きます」→ 词干「聞き」＋「ながら」→「聞きながら」（一边听）。句中出现两次助词「を」，分别提示动词「聞く」的对象「音楽」，以及动词「する」的动作宾语「散歩」，表示宾格。",
+  "vocabulary": [
+    {
+      "word": "毎朝",
+      "reading": "まいあさ",
+      "meaning": "每天早晨（名词/副词）"
+    },
+    {
+      "word": "音楽",
+      "reading": "おんがく",
+      "meaning": "音乐（名词）"
+    },
+    {
+      "word": "聞く",
+      "reading": "きく",
+      "meaning": "听（五段动词/他动词）"
+    },
+    {
+      "word": "散歩",
+      "reading": "さんぽ",
+      "meaning": "散步（名词/サ变动词）"
+    }
+  ],
+  "practice": "请尝试翻译造句：「一边喝咖啡，一边读报纸。」",
+  "practice_answer": "コーヒーを飲みながら新聞を読みます。（コーヒーをのみながらしんぶんをよみます。／ 一边喝咖啡一边读报纸。）",
+  "date": "2026-11-13",
+  "text_model": "gemini-3.8-flash",
+  "tts_model": "chirp-3-hd",
+  "tts_provider": "google-cloud",
+  "tts_voice_id": "ja-JP-Chirp3-HD-Aoede",
+  "slow_method": "native speakingRate=0.75",
+  "audio_revision": "ad9ddbd7538c"
+}
