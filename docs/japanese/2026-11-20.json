@@ -1,0 +1,84 @@
+{
+  "level": "N5",
+  "target": "～が好きです",
+  "scene": "与朋友聊天谈论饮食喜好",
+  "sentence": "私は辛い料理がとても好きです。",
+  "kana": "わたしはからいりょうりがとてもすきです。",
+  "tokens": [
+    {
+      "text": "私",
+      "reading": "わたし"
+    },
+    {
+      "text": "は",
+      "reading": ""
+    },
+    {
+      "text": "辛い",
+      "reading": "からい"
+    },
+    {
+      "text": "料理",
+      "reading": "りょうり"
+    },
+    {
+      "text": "が",
+      "reading": ""
+    },
+    {
+      "text": "とても",
+      "reading": ""
+    },
+    {
+      "text": "好き",
+      "reading": "すき"
+    },
+    {
+      "text": "です",
+      "reading": ""
+    },
+    {
+      "text": "。",
+      "reading": ""
+    }
+  ],
+  "translation": "我非常喜欢吃辣的料理。",
+  "structure": "「私は（主语/话题提示）」「辛い料理が（好恶的对象语）」「とても（程度副词，修饰谓语）」「好きです（谓语，表示喜欢）」",
+  "grammar": "本句包含以下语法点：1. 助词「は」接在代词「私」后，提示全句的主语和话题。2. 助词「が」用于指示好恶的对象。在日语中，表达喜好、技能或愿望时，对象不用表示宾语的「を」，而必须用格助词「が」。3. 副词「とても」意为“非常”，直接放在谓语前表示程度加深。4. 重点句型「[名词]＋が好きです」，表示“喜欢……”。「好き」为二类形容词（形容动词），其词干直接接助动词「です」构成礼貌体现在肯定句。",
+  "vocabulary": [
+    {
+      "word": "私",
+      "reading": "わたし",
+      "meaning": "我（代词）"
+    },
+    {
+      "word": "辛い",
+      "reading": "からい",
+      "meaning": "辣的（一类形容词）"
+    },
+    {
+      "word": "料理",
+      "reading": "りょうり",
+      "meaning": "料理、菜肴（名词）"
+    },
+    {
+      "word": "とても",
+      "reading": "とても",
+      "meaning": "非常、很（副词）"
+    },
+    {
+      "word": "好き",
+      "reading": "すき",
+      "meaning": "喜欢、爱好（二类形容词）"
+    }
+  ],
+  "practice": "请用「～が好きです」翻译造句：“我喜欢日本料理。”",
+  "practice_answer": "私は日本料理が好きです。（わたしはにほんりょうりがすきです。/ 我喜欢日本料理。）",
+  "date": "2026-11-20",
+  "text_model": "gemini-3.8-flash",
+  "tts_model": "chirp-3-hd",
+  "tts_provider": "google-cloud",
+  "tts_voice_id": "ja-JP-Chirp3-HD-Aoede",
+  "slow_method": "native speakingRate=0.75",
+  "audio_revision": "92eb99c69bcb"
+}
